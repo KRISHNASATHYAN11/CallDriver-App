@@ -3,21 +3,22 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 const { width, height } = Dimensions.get("window");
 
@@ -38,7 +39,13 @@ export default function LoginScreen() {
 
   const handleUserTypeChange = (type: "user" | "driver") => {
     if (type === "driver") {
-      Alert.alert("Driver Mode", "Please enter your Driver ID to continue.");
+      Toast.show({
+        type: "success",
+        text1: "Driver Mode",
+        text2: "Please enter your Driver ID / License  to continue.",
+        position: "top",
+        topOffset: 100,
+      });
     }
     setUserType(type);
     setStage("phone");
@@ -47,13 +54,27 @@ export default function LoginScreen() {
 
   const handleContinue = async () => {
     if (phoneNumber.length < 10) {
-      Alert.alert("Oops!", "Please enter a valid 10-digit phone number.");
+      Toast.show({
+        type: "error",
+        text1: "Oops!",
+        text2: "Please enter a valid 10-digit phone number.",
+        position: "top",
+        visibilityTime: 3000,
+      });
+
       return;
     }
 
     if (userType === "driver" && stage === "phone") {
       if (driverId.length < 4) {
-        Alert.alert("Validation Error", "Please enter a valid Driver ID.");
+        Toast.show({
+          type: "error",
+          text1: "Validation Error",
+          text2: "Please enter a valid Driver ID.",
+          position: "top",
+          visibilityTime: 3000,
+        });
+
         return;
       }
     }
@@ -63,25 +84,37 @@ export default function LoginScreen() {
     if (stage === "phone") {
       setTimeout(() => {
         setLoading(false);
-        Alert.alert("Success", `OTP sent to +91${phoneNumber}`);
+
+        // Alert.alert("Success", );
+        Toast.show({
+          type: "success",
+          text1: "Success",
+          text2: `OTP sent to +91${phoneNumber}`,
+          position: "top",
+          visibilityTime: 3000,
+        });
         setStage("otp");
       }, 1500);
     } else {
       const otpCode = otp.join("");
       if (otpCode.length < 4) {
         setLoading(false);
-        Alert.alert("Error", "Please enter the complete OTP.");
+        Toast.show({
+          type: "error",
+          text1: " Error",
+          text2: "Please enter the complete OTP.",
+          position: "top",
+          visibilityTime: 3000,
+        });
         return;
       }
 
       setTimeout(() => {
         setLoading(false);
         if (userType === "user") {
-          Alert.alert("Welcome!", "Navigating to User Dashboard...");
-          // router.replace('/(user)/dashboard');
+          router.replace("/(user)/userdashboard");
         } else {
-          Alert.alert("Welcome Driver!", "Navigating to Driver Dashboard...");
-          router.replace("/driver-onboarding");
+          router.replace("/(driver)/driver-onboarding");
         }
       }, 1500);
     }
