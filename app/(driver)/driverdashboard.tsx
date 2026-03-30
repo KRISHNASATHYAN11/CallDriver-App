@@ -1,33 +1,45 @@
-import React, { useState, useEffect, useRef } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import * as Device from "expo-device";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Animated,
   Dimensions,
   Image,
-  ScrollView,
-  Switch,
-  Alert,
-  ActivityIndicator,
   Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
   Vibration,
-  Animated,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Animatable from "react-native-animatable";
-import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { io, Socket } from "socket.io-client";
-import { useRouter } from "expo-router";
-import { Audio } from "expo-av";
-import * as Haptics from "expo-haptics";
 
 const { width, height } = Dimensions.get("window");
-// NOTE: Use your machine's local IP address (e.g., 192.168.1.5) instead of 'localhost' if testing on a real device
 const SOCKET_URL = "http://localhost:5000";
+
+// --- CONFIGURATION FOR NOTIFICATIONS ---
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,   // ✅ NEW
+    shouldShowList: true,     // ✅ NEW (for notification tray)
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 export default function DriverDashboard() {
   // --- STATE MANAGEMENT ---
@@ -46,15 +58,57 @@ export default function DriverDashboard() {
   const [bookingData, setBookingData] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState(30);
 
+  // Push Token State
+  const [expoPushToken, setExpoPushToken] = useState<string>("");
+
   // --- REFS ---
   const socketRef = useRef<Socket | null>(null);
-  const soundObject = useRef(new Audio.Sound());
+  // const soundObject = useRef(new Audio.Sound());
+  const soundObject = useRef<Audio.Sound | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeLeftRef = useRef<number>(30);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+const responseListener = useRef<Notifications.Subscription | null>(null);
+
   const DRIVER_ID = "driver_123";
 
-  // --- 1. SOCKET & NOTIFICATION SETUP ---
+  // --- 1. PUSH NOTIFICATION SETUP ---
+ useEffect(() => {
+  // Get push token
+  registerForPushNotificationsAsync().then((token) => {
+    setExpoPushToken(token || "");
+    console.log("Push Token:", token);
+  });
+
+  // LISTENER 1: Foreground notification
+  notificationListener.current =
+    Notifications.addNotificationReceivedListener((notification) => {
+      console.log("Notification Received:", notification);
+    });
+
+  // LISTENER 2: When user taps notification
+  responseListener.current =
+    Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log("Notification Tapped:", response);
+
+      const data = response.notification.request.content.data;
+
+      if (data && data.bookingData) {
+        handleIncomingRide(data.bookingData);
+      } else {
+        router.push("/(driver)/notifications");
+      }
+    });
+
+  // ✅ CLEANUP (UPDATED - NO ERROR)
+  return () => {
+    notificationListener.current?.remove();
+    responseListener.current?.remove();
+  };
+}, []);
+
+  // --- 2. SOCKET SETUP (Still useful for foreground updates) ---
   useEffect(() => {
     socketRef.current = io(SOCKET_URL);
 
@@ -64,7 +118,8 @@ export default function DriverDashboard() {
     });
 
     socketRef.current.on("new-booking", (data) => {
-      console.log("New Ride Request:", data);
+      console.log("New Ride via Socket:", data);
+      // If app is open, handle directly
       handleIncomingRide(data);
     });
 
@@ -74,29 +129,18 @@ export default function DriverDashboard() {
     };
   }, []);
 
-  // --- 2. ALERT LOGIC (Sound, Vibration, Timer) ---
-
+  // --- 3. ALERT LOGIC ---
   const handleIncomingRide = (data: any) => {
     setBookingData(data);
     setHasRequest(true);
-
-    // Reset Timer
     timeLeftRef.current = 30;
     setTimeLeft(30);
 
-    // 1. Vibration Pattern
     Vibration.vibrate([0, 500, 1000, 500], true);
-
-    // 2. Haptic Feedback
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-
-    // 3. Play Sound
     playNotificationSound();
-
-    // 4. Start Countdown
     startTimer();
 
-    // 5. Animate Popup
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 300,
@@ -104,27 +148,22 @@ export default function DriverDashboard() {
     }).start();
   };
 
-  const playNotificationSound = async () => {
-    try {
-      // IMPORTANT: Ensure you have a file named 'notification.mp3' in your 'assets' folder.
-      // If you don't have the file, comment out the next 4 lines to prevent crashes.
-      const { sound } = await Audio.Sound.createAsync(
-        require("../assets/notification.mp3"),
-        { shouldPlay: true, isLooping: true },
-      );
-      soundObject.current = sound;
-      await soundObject.current.playAsync();
-    } catch (error) {
-      console.log("Sound file not found or failed to play, skipping sound.");
-    }
-  };
-
+ const playNotificationSound = async () => {
+  try {
+    const { sound } = await Audio.Sound.createAsync(
+      require("../assets/notification.mp3"),
+      { shouldPlay: true, isLooping: true }
+    );
+    soundObject.current = sound;
+    await sound.playAsync();
+  } catch (error) {
+    console.log("Sound failed");
+  }
+};
   const startTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
-
     timerRef.current = setInterval(() => {
       timeLeftRef.current -= 1;
-
       if (timeLeftRef.current <= 0) {
         declineRide();
       } else {
@@ -133,19 +172,21 @@ export default function DriverDashboard() {
     }, 1000);
   };
 
-  const stopAlerts = async () => {
-    Vibration.cancel();
-    if (timerRef.current) clearInterval(timerRef.current);
-    try {
-      if (soundObject.current) {
-        await soundObject.current.stopAsync();
-        await soundObject.current.unloadAsync();
-      }
-    } catch (e) {}
-  };
+ const stopAlerts = async () => {
+  Vibration.cancel();
 
-  // --- 3. PROFILE IMAGE LOGIC ---
+  if (timerRef.current) clearInterval(timerRef.current);
 
+  try {
+    if (soundObject.current) {
+      await soundObject.current.stopAsync();
+      await soundObject.current.unloadAsync();
+      soundObject.current = null;
+    }
+  } catch (e) {}
+};
+
+  // --- 4. PROFILE IMAGE LOGIC ---
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -179,10 +220,9 @@ export default function DriverDashboard() {
     }
   };
 
-  // --- 4. TOGGLE ONLINE STATUS ---
   const toggleSwitch = () => setIsOnline((previousState) => !previousState);
 
-  // --- 5. ACCEPT RIDE & SHARE LOCATION ---
+  // --- 5. ACCEPT RIDE ---
   const acceptRide = async () => {
     stopAlerts();
     setIsLoading(true);
@@ -203,7 +243,6 @@ export default function DriverDashboard() {
           bookingId: bookingData?.id || "unknown",
           location: { latitude, longitude },
         });
-        console.log("Location sent to backend:", latitude, longitude);
       }
 
       Alert.alert(
@@ -233,8 +272,8 @@ export default function DriverDashboard() {
     }
   };
 
-  // --- SIMULATE FUNCTION (For Testing) ---
-  const simulateRide = () => {
+  // --- SIMULATE PUSH NOTIFICATION (TEST FUNCTION) ---
+  const simulateRide = async () => {
     const fakeData = {
       id: "sim_123",
       userName: "Sarah Mathew",
@@ -244,7 +283,22 @@ export default function DriverDashboard() {
       rating: "4.9",
       distance: "2 min away",
     };
-    handleIncomingRide(fakeData);
+
+    // Send a LOCAL PUSH NOTIFICATION
+    // This simulates what your backend would send via FCM/APNs
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "🚕 New Ride Request!",
+        body: `${fakeData.userName} wants to go to ${fakeData.dropoff}`,
+        data: { bookingData: fakeData }, // Pass data to handle on tap
+        sound: "default",
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: null, // Immediately
+    });
+
+    // Also handle it locally for the in-app modal if app is open
+    // handleIncomingRide(fakeData); // Comment this out to test pure background notification
   };
 
   return (
@@ -282,7 +336,10 @@ export default function DriverDashboard() {
               >
                 <Ionicons name="wallet-outline" size={24} color="#333" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.bellButton}>
+              <TouchableOpacity
+                style={styles.bellButton}
+                onPress={() => router.push("/(driver)/notifications")}
+              >
                 <Ionicons name="notifications-outline" size={24} color="#333" />
                 <View style={styles.notificationDot} />
               </TouchableOpacity>
@@ -384,7 +441,7 @@ export default function DriverDashboard() {
 
         {/* TEST BUTTON */}
         <TouchableOpacity style={styles.testBtn} onPress={simulateRide}>
-          <Text style={styles.testBtnText}>Simulate Incoming Ride</Text>
+          <Text style={styles.testBtnText}>Simulate System Notification</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -402,14 +459,12 @@ export default function DriverDashboard() {
               { opacity: fadeAnim, transform: [{ scale: fadeAnim }] },
             ]}
           >
-            {/* Timer Circle */}
             <View style={styles.timerCircle}>
               <Text style={styles.timerText}>{timeLeft}s</Text>
             </View>
 
             <Text style={styles.rideTitle}>New Ride Request!</Text>
 
-            {/* Passenger Info */}
             <View style={styles.passengerRow}>
               <View style={styles.passengerAvatar}>
                 <Text style={styles.avatarText}>
@@ -430,13 +485,15 @@ export default function DriverDashboard() {
               </View>
             </View>
 
-            {/* Route Info - UNCOMMENTED FOR BETTER UX */}
             <View style={styles.routeContainer}>
               <View style={styles.routePoints}>
                 <View
                   style={[styles.routeDot, { backgroundColor: "#4CAF50" }]}
                 />
-              
+                <View style={styles.routeLine} />
+                <View
+                  style={[styles.routeDot, { backgroundColor: "#F44336" }]}
+                />
               </View>
 
               <View style={styles.routeTexts}>
@@ -446,10 +503,15 @@ export default function DriverDashboard() {
                     {bookingData?.pickup || "456 Kowdiar Ave"}
                   </Text>
                 </View>
+                <View style={[styles.locationBox, { marginTop: 15 }]}>
+                  <Text style={styles.locationLabel}>DROP OFF</Text>
+                  <Text style={styles.locationText}>
+                    {bookingData?.dropoff || "123 Main Street Mall"}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* Buttons */}
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.declineBtn} onPress={declineRide}>
                 <Ionicons name="close" size={24} color="#d32f2f" />
@@ -472,81 +534,54 @@ export default function DriverDashboard() {
         </View>
       </Modal>
 
-      {/* ----------------- OTHER MODALS ----------------- */}
-
-      {/* CONFIRMATION MODAL (Profile Picture) */}
-      <Modal
-        visible={isConfirmModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={cancelImage}
-      >
-        <View style={styles.modalCenteredView}>
-          <View style={styles.confirmModalView}>
-            <Text style={styles.modalTitle}>Set Profile Picture?</Text>
-            {pendingImage && (
-              <Image
-                source={{ uri: pendingImage }}
-                style={styles.previewImage}
-              />
-            )}
-            <View style={styles.modalButtonRow}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.cancelBtn]}
-                onPress={cancelImage}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.confirmBtn]}
-                onPress={confirmImage}
-              >
-                <Text style={styles.confirmBtnText}>Accept</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* VIEW IMAGE MODAL */}
-      <Modal
-        visible={isViewModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsViewModalVisible(false)}
-      >
-        <View style={styles.modalCenteredView}>
-          <View style={styles.viewModalView}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setIsViewModalVisible(false)}
-            >
-              <Ionicons name="close-circle" size={30} color="#fff" />
-            </TouchableOpacity>
-            {profileImage && (
-              <Image source={{ uri: profileImage }} style={styles.fullImage} />
-            )}
-            <TouchableOpacity
-              style={styles.changePhotoBtn}
-              onPress={() => {
-                setIsViewModalVisible(false);
-                pickImage();
-              }}
-            >
-              <Ionicons name="camera" size={20} color="#fff" />
-              <Text style={styles.changePhotoText}>Change Photo</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* OTHER MODALS (Confirm & View Image) - Keep your existing modal code here */}
+      {/* ... */}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+async function registerForPushNotificationsAsync() {
+  let token;
 
-  // Header
+  if (Device.isDevice) {
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      alert("Permission not granted!");
+      return;
+    }
+
+    // ✅ NEW WAY (important for production)
+    token = (await Notifications.getExpoPushTokenAsync()).data;
+
+  } else {
+    alert("Use real device");
+  }
+
+  // ✅ MUST USE await here
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF231F7C",
+    });
+  }
+
+  return token;
+}
+
+const styles = StyleSheet.create({
+  // ... (Keep your existing styles)
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
   header: { paddingHorizontal: 20, marginBottom: 10, marginTop: 10 },
   headerTop: {
     flexDirection: "row",
@@ -579,8 +614,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: "#FF5722",
   },
-
-  // Status
   statusCard: {
     marginHorizontal: 20,
     marginBottom: 20,
@@ -596,8 +629,6 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 18, fontWeight: "bold" },
   statusSubtext: { fontSize: 13, color: "#666", marginTop: 4 },
-
-  // Earnings
   earningsWrapper: { paddingHorizontal: 20, marginBottom: 20 },
   earningsCard: { borderRadius: 20, padding: 20, elevation: 8 },
   earningsLabel: { color: "#E3F2FD", fontSize: 14, letterSpacing: 1 },
@@ -616,8 +647,6 @@ const styles = StyleSheet.create({
   },
   earningsStat: { flexDirection: "row", alignItems: "center", marginRight: 20 },
   earningsStatText: { color: "#fff", fontSize: 14, fontWeight: "600" },
-
-  // Stats
   statsContainer: {
     flexDirection: "row",
     marginHorizontal: 20,
@@ -637,8 +666,6 @@ const styles = StyleSheet.create({
   },
   statNumber: { fontSize: 20, fontWeight: "bold", color: "#333", marginTop: 5 },
   statLabel: { fontSize: 12, color: "#888", marginTop: 2 },
-
-  // Test Button
   testBtn: {
     marginHorizontal: 20,
     backgroundColor: "#1E88E5",
@@ -647,8 +674,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   testBtnText: { color: "#fff", fontWeight: "bold" },
-
-  // --- INCOMING RIDE MODAL STYLES ---
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -674,8 +699,6 @@ const styles = StyleSheet.create({
   },
   timerText: { fontSize: 20, fontWeight: "bold", color: "#1E88E5" },
   rideTitle: { fontSize: 22, fontWeight: "bold", marginBottom: 20 },
-
-  // Passenger inside Modal
   passengerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -694,8 +717,6 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 18, fontWeight: "bold", color: "#1E88E5" },
   passengerName: { fontSize: 16, fontWeight: "bold", color: "#333" },
   ratingText: { fontSize: 12, color: "#888" },
-
-  // Route inside Modal
   routeContainer: { flexDirection: "row", marginBottom: 20, width: "100%" },
   routePoints: { width: 20, alignItems: "center", marginRight: 15 },
   routeDot: { width: 12, height: 12, borderRadius: 6 },
@@ -709,21 +730,6 @@ const styles = StyleSheet.create({
   locationBox: { marginBottom: 5 },
   locationLabel: { fontSize: 11, color: "#aaa", marginBottom: 2 },
   locationText: { fontSize: 15, color: "#333", fontWeight: "500" },
-
-  // Fare inside Modal
-  fareRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginBottom: 25,
-    paddingBottom: 15,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-  },
-  fareLabel: { fontSize: 16, color: "#666" },
-  fareValue: { fontSize: 22, fontWeight: "bold", color: "#28a745" },
-
-  // Buttons inside Modal
   actionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -740,66 +746,4 @@ const styles = StyleSheet.create({
   },
   acceptBtn: { paddingVertical: 15, paddingHorizontal: 40, borderRadius: 30 },
   acceptBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-
-  // --- OTHER MODALS ---
-  modalCenteredView: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.8)",
-  },
-
-  confirmModalView: {
-    width: "85%",
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-    color: "#333",
-  },
-  previewImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    marginBottom: 20,
-  },
-  modalButtonRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-  },
-  modalBtn: { paddingVertical: 12, paddingHorizontal: 30, borderRadius: 20 },
-  cancelBtn: { backgroundColor: "#f0f0f0" },
-  cancelBtnText: { color: "#666", fontWeight: "bold" },
-  confirmBtn: { backgroundColor: "#1E88E5" },
-  confirmBtnText: { color: "#fff", fontWeight: "bold" },
-
-  viewModalView: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  fullImage: {
-    width: "90%",
-    height: "70%",
-    resizeMode: "contain",
-    borderRadius: 20,
-  },
-  closeBtn: { position: "absolute", top: 50, right: 20 },
-  changePhotoBtn: {
-    flexDirection: "row",
-    backgroundColor: "#1E88E5",
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 20,
-    marginTop: 30,
-    alignItems: "center",
-  },
-  changePhotoText: { color: "#fff", fontWeight: "bold", marginLeft: 10 },
 });

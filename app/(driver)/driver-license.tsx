@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   previewButtonsContainer: {
     position: "absolute",
-    bottom: 0,
+    bottom:40,
     left: 0,
     right: 0,
     backgroundColor: "rgba(0,0,0,0.7)",

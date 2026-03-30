@@ -4,10 +4,10 @@ import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   StatusBar,
   StyleSheet,
@@ -32,6 +32,9 @@ export default function LoginScreen() {
   const [driverId, setDriverId] = useState<string>("");
   const [otp, setOtp] = useState<string[]>(["", "", "", ""]);
   const [loading, setLoading] = useState(false);
+  
+  // NEW: State for custom popup
+  const [isModalVisible, setModalVisible] = useState(false);
 
   const otpInputs = useRef<(TextInput | null)[]>([]);
 
@@ -39,15 +42,19 @@ export default function LoginScreen() {
 
   const handleUserTypeChange = (type: "user" | "driver") => {
     if (type === "driver") {
-      Toast.show({
-        type: "success",
-        text1: "Driver Mode",
-        text2: "Please enter your Driver ID / License  to continue.",
-        position: "top",
-        topOffset: 100,
-      });
+      // Show the custom cute popup instead of Toast/Alert
+      setModalVisible(true);
+    } else {
+      setUserType(type);
+      setStage("phone");
+      setOtp(["", "", "", ""]);
     }
-    setUserType(type);
+  };
+
+  // NEW: Handle confirmation from the popup
+  const handleDriverConfirm = () => {
+    setModalVisible(false);
+    setUserType("driver");
     setStage("phone");
     setOtp(["", "", "", ""]);
   };
@@ -61,7 +68,6 @@ export default function LoginScreen() {
         position: "top",
         visibilityTime: 3000,
       });
-
       return;
     }
 
@@ -74,7 +80,6 @@ export default function LoginScreen() {
           position: "top",
           visibilityTime: 3000,
         });
-
         return;
       }
     }
@@ -84,8 +89,6 @@ export default function LoginScreen() {
     if (stage === "phone") {
       setTimeout(() => {
         setLoading(false);
-
-        // Alert.alert("Success", );
         Toast.show({
           type: "success",
           text1: "Success",
@@ -191,7 +194,6 @@ export default function LoginScreen() {
           delay={200}
           style={styles.logoContainer}
         >
-          {/* FIX: Moved resizeMode to prop, removed from style */}
           <Image
             source={require("../../assets/images/CDlogo.png")}
             style={styles.logoImage}
@@ -413,6 +415,57 @@ export default function LoginScreen() {
           )}
         </Animatable.View>
       </KeyboardAvoidingView>
+
+      {/* CUSTOM CUTE POPUP MODAL */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Animatable.View 
+            animation="bounceIn" 
+            duration={600} 
+            style={styles.modalCard}
+          >
+            {/* Icon Container with Gradient */}
+            <LinearGradient
+              colors={['#42A5F5', '#1E88E5']}
+              style={styles.modalIconCircle}
+            >
+              <Ionicons name="car-sport" size={40} color="#fff" />
+            </LinearGradient>
+
+            <Text style={styles.modalTitle}>Driver Mode</Text>
+            <Text style={styles.modalText}>
+              You are switching to Driver Mode. Please ensure you have your
+              Driver ID or License handy to proceed with verification.
+            </Text>
+
+            {/* Cute Button */}
+            <TouchableOpacity 
+              onPress={handleDriverConfirm} 
+              style={styles.modalBtnWrapper}
+            >
+              <LinearGradient
+                colors={['#42A5F5', '#1E88E5']}
+                style={styles.modalBtn}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalBtnText}>Got it!</Text>
+                <Ionicons name="checkmark-circle" size={20} color="#fff" style={{marginLeft: 8}} />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Secondary Cancel Action */}
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCancelBtn}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Animatable.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -422,15 +475,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-
-  // Background Decorations
   bgCircle: {
     position: "absolute",
     borderRadius: 200,
     opacity: 0.6,
   },
-
-  // Logo Section
   logoContainer: {
     alignItems: "center",
     marginTop: 20,
@@ -439,7 +488,6 @@ const styles = StyleSheet.create({
   logoImage: {
     width: 130,
     height: 130,
-    // REMOVED: resizeMode from style
   },
   appName: {
     fontSize: 32,
@@ -454,8 +502,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 1,
   },
-
-  // Role Switcher
   roleContainer: {
     marginBottom: 15,
     paddingHorizontal: 30,
@@ -479,9 +525,8 @@ const styles = StyleSheet.create({
   },
   roleBtnActive: {
     backgroundColor: "#1E88E5",
-    // FIX: Replaced shadow* props with boxShadow string
     boxShadow: "0px 4px 8px rgba(30, 136, 229, 0.3)",
-    elevation: 5, // Keep elevation for Android
+    elevation: 5,
   },
   roleText: {
     marginLeft: 8,
@@ -492,8 +537,6 @@ const styles = StyleSheet.create({
   roleTextActive: {
     color: "#fff",
   },
-
-  // Card Styles
   card: {
     flex: 1,
     backgroundColor: "#fff",
@@ -501,7 +544,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 25,
-    // FIX: Replaced shadow* props with boxShadow string
     boxShadow: "0px -5px 15px rgba(0, 0, 0, 0.05)",
     elevation: 10,
     borderWidth: 1,
@@ -522,8 +564,6 @@ const styles = StyleSheet.create({
     color: "#90A4AE",
     marginBottom: 25,
   },
-
-  // Inputs
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -552,8 +592,6 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontWeight: "600",
   },
-
-  // OTP
   otpContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -571,8 +609,6 @@ const styles = StyleSheet.create({
     color: "#1565C0",
     backgroundColor: "#F5F9FF",
   },
-
-  // Button
   loginBtn: {
     marginTop: 10,
     borderRadius: 15,
@@ -600,5 +636,78 @@ const styles = StyleSheet.create({
     color: "#1E88E5",
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  // --- Custom Modal Styles ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    width: width * 0.85,
+    backgroundColor: "#fff",
+    borderRadius: 25,
+    padding: 25,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 15,
+  },
+  modalIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+    marginTop: -50, // Pull up slightly
+    borderWidth: 4,
+    borderColor: "#fff",
+    shadowColor: "#1E88E5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1565C0",
+    marginBottom: 10,
+  },
+  modalText: {
+    fontSize: 15,
+    color: "#546E7A",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 25,
+  },
+  modalBtnWrapper: {
+    width: "100%",
+    borderRadius: 15,
+    overflow: "hidden",
+  },
+  modalBtn: {
+    height: 55,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  modalBtnText: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  modalCancelBtn: {
+    marginTop: 15,
+    padding: 5,
+  },
+  modalCancelText: {
+    color: "#90A4AE",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });
