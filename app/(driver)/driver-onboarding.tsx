@@ -133,7 +133,7 @@ export default function DriverOnboarding() {
             left: -50,
             width: 200,
             height: 200,
-            backgroundColor: "#E3F2FD",
+            backgroundColor: "#000",
           },
         ]}
       />
@@ -149,7 +149,7 @@ export default function DriverOnboarding() {
             right: -80,
             width: 250,
             height: 250,
-            backgroundColor: "#aed5f6",
+            backgroundColor: "#000",
           },
         ]}
       />
@@ -164,7 +164,7 @@ export default function DriverOnboarding() {
             onPress={() => router.replace("/login")}
             style={styles.backBtn}
           >
-            <Ionicons name="arrow-back" size={24} color="#1E88E5" />
+            <Ionicons name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Driver Verification</Text>
@@ -181,7 +181,7 @@ export default function DriverOnboarding() {
           style={styles.card}
         >
           <View style={styles.iconHeader}>
-            <Ionicons name="document-text-outline" size={28} color="#1E88E5" />
+            <Ionicons name="document-text-outline" size={28} color="#fff" />
             <Text style={styles.cardTitle}> Basic Information</Text>
           </View>
 
@@ -194,7 +194,7 @@ export default function DriverOnboarding() {
             <Ionicons
               name="person-outline"
               size={22}
-              color="#1E88E5"
+              color="#fff"
               style={styles.inputIcon}
             />
             <TextInput
@@ -211,7 +211,7 @@ export default function DriverOnboarding() {
             <Ionicons
               name="calendar-outline"
               size={22}
-              color="#1E88E5"
+              color="#aaa"
               style={styles.inputIcon}
             />
             <TextInput
@@ -230,7 +230,7 @@ export default function DriverOnboarding() {
             <Ionicons
               name="card-outline"
               size={22}
-              color="#1E88E5"
+              color="#aaa"
               style={styles.inputIcon}
             />
             <TextInput
@@ -258,7 +258,7 @@ export default function DriverOnboarding() {
           {/* Next Button */}
           <TouchableOpacity onPress={handleNext} style={styles.loginBtn}>
             <LinearGradient
-              colors={["#42A5F5", "#1E88E5"]}
+              colors={["#fff", "#fff"]}
               style={styles.btnGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -267,7 +267,7 @@ export default function DriverOnboarding() {
               <Ionicons
                 name="arrow-forward"
                 size={20}
-                color="#fff"
+                color="#000"
                 style={{ marginLeft: 10 }}
               />
             </LinearGradient>
@@ -281,7 +281,7 @@ export default function DriverOnboarding() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#000",
   },
   bgCircle: {
     position: "absolute",
@@ -309,16 +309,16 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: "#fff",
   },
   headerSubtitle: {
     fontSize: 13,
-    color: "#90A4AE",
+    color: "#aaa",
     marginTop: 2,
   },
   card: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#000",
     marginHorizontal: 20,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -339,17 +339,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#333",
+    color: "#fff",
   },
   cardSubtitle: {
     fontSize: 14,
-    color: "#90A4AE",
+    color: "#aaa",
     marginBottom: 25,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F9FF",
+    backgroundColor: "#000",
     borderRadius: 15,
     paddingHorizontal: 15,
     height: 58,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    color: "#fff",
     fontWeight: "500",
   },
   noteContainer: {
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   loginBtnText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#000",
     letterSpacing: 1,
   },
 });

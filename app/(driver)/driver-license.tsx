@@ -67,7 +67,7 @@ export default function DriverLicense() {
           {/* Start Button */}
           <TouchableOpacity onPress={() => setShowInstructions(false)}>
             <LinearGradient
-              colors={["#007bff", "#00c6ff"]}
+              colors={["#000", "#000"]}
               style={styles.startBtn}
             >
               <Text style={styles.startBtnText}>Start Scanning</Text>
@@ -96,7 +96,7 @@ export default function DriverLicense() {
 
           <TouchableOpacity onPress={handleConfirm}>
             <LinearGradient
-              colors={["#28a745", "#5cb85c"]}
+              colors={["#fff", "#fff"]}
               style={styles.confirmBtn}
             >
               <Text style={styles.confirmBtnText}>Looks Good ✓</Text>
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f0f4f8", // Light background
+    backgroundColor: "#000", // Light background
     padding: 20,
   },
   instructionCard: {
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
   },
   confirmBtnText: {
-    color: "#fff",
+    color: "#000",
     fontWeight: "bold",
     fontSize: 16,
   },

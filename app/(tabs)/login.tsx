@@ -32,7 +32,7 @@ export default function LoginScreen() {
   const [driverId, setDriverId] = useState<string>("");
   const [otp, setOtp] = useState<string[]>(["", "", "", ""]);
   const [loading, setLoading] = useState(false);
-  
+
   // NEW: State for custom popup
   const [isModalVisible, setModalVisible] = useState(false);
 
@@ -133,7 +133,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" backgroundColor="#000" />
 
       {/* Cute Floating Background Elements */}
       <Animatable.View
@@ -147,7 +147,7 @@ export default function LoginScreen() {
             left: -50,
             width: 200,
             height: 200,
-            backgroundColor: "#E3F2FD",
+            backgroundColor: "#111",
           },
         ]}
       />
@@ -163,7 +163,7 @@ export default function LoginScreen() {
             right: -80,
             width: 250,
             height: 250,
-            backgroundColor: "#aed5f6",
+            backgroundColor: "#111",
           },
         ]}
       />
@@ -179,7 +179,7 @@ export default function LoginScreen() {
             right: 20,
             width: 100,
             height: 100,
-            backgroundColor: "#E1F5FE",
+            backgroundColor: "#111",
           },
         ]}
       />
@@ -239,7 +239,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name="person-circle"
                   size={26}
-                  color={userType === "user" ? "#fff" : "#1E88E5"}
+                  color={userType === "user" ? "#fff" : "#000"}
                 />
                 <Text
                   style={[
@@ -269,7 +269,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name="car-sport"
                   size={26}
-                  color={userType === "driver" ? "#fff" : "#1E88E5"}
+                  color={userType === "driver" ? "#fff" : "#000"}
                 />
                 <Text
                   style={[
@@ -291,7 +291,7 @@ export default function LoginScreen() {
           style={styles.card}
         >
           <View style={styles.cardHeader}>
-            <Ionicons name="enter-outline" size={24} color="#1E88E5" />
+            <Ionicons name="enter-outline" size={24} color="#fff" />
             <Text style={styles.cardTitle}>
               {stage === "phone" ? "  Login / Register" : "  Verify OTP"}
             </Text>
@@ -310,13 +310,13 @@ export default function LoginScreen() {
                 <Ionicons
                   name="call-outline"
                   size={22}
-                  color="#1E88E5"
+                  color="#fff"
                   style={styles.inputIcon}
                 />
                 <TextInput
                   style={styles.textInput}
                   placeholder="Phone Number"
-                  placeholderTextColor="#B0BEC5"
+                  placeholderTextColor="#777"
                   keyboardType="phone-pad"
                   maxLength={10}
                   onChangeText={setPhoneNumber}
@@ -328,12 +328,12 @@ export default function LoginScreen() {
               {userType === "driver" && (
                 <Animatable.View animation="fadeInDown" duration={300}>
                   <View
-                    style={[styles.inputWrapper, { borderColor: "#1E88E5" }]}
+                    style={[styles.inputWrapper, { borderColor: "#fff" }]}
                   >
                     <Ionicons
                       name="id-card-outline"
                       size={22}
-                      color="#1E88E5"
+                      color="#fff"
                       style={styles.inputIcon}
                     />
                     <TextInput
@@ -381,7 +381,7 @@ export default function LoginScreen() {
             style={styles.loginBtn}
           >
             <LinearGradient
-              colors={["#42A5F5", "#1E88E5"]}
+              colors={["#000", "#aaa"]}
               style={styles.btnGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -409,7 +409,7 @@ export default function LoginScreen() {
               onPress={() => setStage("phone")}
               style={styles.backLink}
             >
-              <Ionicons name="arrow-back" size={14} color="#1E88E5" />
+              <Ionicons name="arrow-back" size={14} color="#aaa" />
               <Text style={styles.backText}> Change Number</Text>
             </TouchableOpacity>
           )}
@@ -424,14 +424,14 @@ export default function LoginScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <Animatable.View 
-            animation="bounceIn" 
-            duration={600} 
+          <Animatable.View
+            animation="bounceIn"
+            duration={600}
             style={styles.modalCard}
           >
             {/* Icon Container with Gradient */}
             <LinearGradient
-              colors={['#42A5F5', '#1E88E5']}
+              colors={["#000", "#000"]}
               style={styles.modalIconCircle}
             >
               <Ionicons name="car-sport" size={40} color="#fff" />
@@ -444,24 +444,32 @@ export default function LoginScreen() {
             </Text>
 
             {/* Cute Button */}
-            <TouchableOpacity 
-              onPress={handleDriverConfirm} 
+            <TouchableOpacity
+              onPress={handleDriverConfirm}
               style={styles.modalBtnWrapper}
             >
               <LinearGradient
-                colors={['#42A5F5', '#1E88E5']}
+                colors={["#000", "#aaa"]}
                 style={styles.modalBtn}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
                 <Text style={styles.modalBtnText}>Got it!</Text>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" style={{marginLeft: 8}} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color="#fff"
+                  style={{ marginLeft: 8 }}
+                />
               </LinearGradient>
             </TouchableOpacity>
 
             {/* Secondary Cancel Action */}
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCancelBtn}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+            <TouchableOpacity
+              onPress={() => setModalVisible(false)}
+              style={styles.modalCancelBtn}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </Animatable.View>
         </View>
@@ -473,7 +481,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#000",
   },
   bgCircle: {
     position: "absolute",
@@ -492,11 +500,11 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#1565C0",
+    color: "#fff",
     letterSpacing: 1,
   },
   tagline: {
-    color: "#90CAF9",
+    color: "#ece0e0",
     fontSize: 14,
     marginTop: 2,
     fontWeight: "600",
@@ -524,13 +532,13 @@ const styles = StyleSheet.create({
     borderRadius: 30,
   },
   roleBtnActive: {
-    backgroundColor: "#1E88E5",
+    backgroundColor: "#111",
     boxShadow: "0px 4px 8px rgba(30, 136, 229, 0.3)",
     elevation: 5,
   },
   roleText: {
     marginLeft: 8,
-    color: "#1E88E5",
+    color: "#000",
     fontWeight: "bold",
     fontSize: 15,
   },
@@ -539,7 +547,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#111",
     marginHorizontal: 20,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -557,23 +565,23 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#333",
+    color: "#fff",
   },
   cardSubtitle: {
     fontSize: 14,
-    color: "#90A4AE",
+    color: "#aaa",
     marginBottom: 25,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F9FF",
+    backgroundColor: "#1a1a1a",
     borderRadius: 15,
     paddingHorizontal: 15,
     height: 58,
     marginBottom: 15,
     borderWidth: 1.5,
-    borderColor: "#E3F2FD",
+    borderColor: "#333",
   },
   inputIcon: {
     marginRight: 10,
@@ -581,11 +589,11 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    color: "#fff",
     fontWeight: "500",
   },
   driverNote: {
-    color: "#1E88E5",
+    color: "#fff",
     fontSize: 12,
     marginTop: -10,
     marginBottom: 15,
@@ -606,7 +614,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 24,
     fontWeight: "bold",
-    color: "#1565C0",
+    color: "#000",
     backgroundColor: "#F5F9FF",
   },
   loginBtn: {
@@ -633,7 +641,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backText: {
-    color: "#1E88E5",
+    color: "#aaa",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -647,11 +655,11 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: width * 0.85,
-    backgroundColor: "#fff",
+    backgroundColor: "#111",
     borderRadius: 25,
     padding: 25,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: "#111",
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
@@ -675,12 +683,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#1565C0",
+    color: "#fff",
     marginBottom: 10,
   },
   modalText: {
     fontSize: 15,
-    color: "#546E7A",
+    color: "#ccc",
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 25,

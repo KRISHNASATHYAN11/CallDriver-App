@@ -41,13 +41,13 @@ export default function DriverWalletScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Wallet</Text>
+          <Text style={styles.headerTitle}>MY WALLET</Text>
           <View style={{ width: 30 }} />
         </View>
 
        
         <LinearGradient
-          colors={['#0D47A1', '#1976D2']}
+          colors={['#000', '#000']}
           style={styles.balanceCard}
           start={{x: 0, y: 0}} end={{x: 1, y: 1}}
         >
@@ -91,9 +91,9 @@ export default function DriverWalletScreen() {
             height={220}
             yAxisLabel="$"
             chartConfig={{
-              backgroundColor: "#1E88E5",
-              backgroundGradientFrom: "#1E88E5",
-              backgroundGradientTo: "#42A5F5",
+              backgroundColor: "#aaa",
+              backgroundGradientFrom: "#000",
+              backgroundGradientTo: "#000",
               decimalPlaces: 0,
               color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
               labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
@@ -130,12 +130,12 @@ export default function DriverWalletScreen() {
 
 // Styles remain the same
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  container: { flex: 1, backgroundColor: '#000' },
   header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backBtn: { padding: 5 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
   balanceCard: { marginHorizontal: 20, borderRadius: 20, padding: 25, marginBottom: 20, elevation: 5 },
-  balanceLabel: { color: '#E3F2FD', fontSize: 14 },
+  balanceLabel: { color: '#fff', fontSize: 14 },
   balanceAmount: { color: '#fff', fontSize: 42, fontWeight: 'bold', marginVertical: 10 },
   balanceFooter: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)', paddingTop: 15, marginTop: 10 },
   balanceItem: { flexDirection: 'row', alignItems: 'center', marginRight: 20 },
@@ -145,10 +145,10 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 22, fontWeight: 'bold', color: '#1565C0', marginVertical: 5 },
   statLabel: { fontSize: 12, color: '#666', textAlign: 'center' },
   graphContainer: { marginHorizontal: 20, marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 15 },
   ridesSection: { marginHorizontal: 20, paddingBottom: 40 },
   rideItem: { backgroundColor: '#fff', padding: 15, borderRadius: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 10, elevation: 1 },
-  rideIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1E88E5', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  rideIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   rideDetails: { flex: 1 },
   rideUser: { fontWeight: 'bold', fontSize: 16, color: '#333' },
   rideMeta: { fontSize: 12, color: '#888', marginTop: 2 },

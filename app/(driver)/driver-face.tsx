@@ -115,7 +115,7 @@ function PermissionScreen({ requestPermission }: { requestPermission: () => void
   return (
     <View style={styles.centered}>
       <View style={styles.permissionCard}>
-        <Ionicons name="camera-outline" size={60} color="#4F46E5" />
+        <Ionicons name="camera-outline" size={60} color="#fff" />
         <Text style={styles.permissionTitle}>Camera Access Needed</Text>
         <Text style={styles.permissionText}>
           We need access to your camera to verify your identity.
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   badgeText: {
     marginLeft: 8,
     fontWeight: '600',
-    color: '#4F46E5',
+    color: '#000',
     fontSize: 14,
   },
   instructionText: {
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 40,
     height: 40,
-    borderColor: '#818CF8', 
+    borderColor: '#fff', 
     borderWidth: 4,
   },
   topLeft: { top: -2, left: -2, borderBottomWidth: 0, borderRightWidth: 0, borderTopLeftRadius: 140 },
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
   },

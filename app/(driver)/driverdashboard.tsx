@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as Device from "expo-device";
 import * as Haptics from "expo-haptics";
+// import * as ImagePicker from "expo-image-picker";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
@@ -34,8 +35,8 @@ const SOCKET_URL = "http://localhost:5000";
 // --- CONFIGURATION FOR NOTIFICATIONS ---
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowBanner: true,   // ✅ NEW
-    shouldShowList: true,     // ✅ NEW (for notification tray)
+    shouldShowBanner: true, // ✅ NEW
+    shouldShowList: true, // ✅ NEW (for notification tray)
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -69,44 +70,44 @@ export default function DriverDashboard() {
   const timeLeftRef = useRef<number>(30);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const notificationListener = useRef<Notifications.Subscription | null>(null);
-const responseListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   const DRIVER_ID = "driver_123";
 
   // --- 1. PUSH NOTIFICATION SETUP ---
- useEffect(() => {
-  // Get push token
-  registerForPushNotificationsAsync().then((token) => {
-    setExpoPushToken(token || "");
-    console.log("Push Token:", token);
-  });
-
-  // LISTENER 1: Foreground notification
-  notificationListener.current =
-    Notifications.addNotificationReceivedListener((notification) => {
-      console.log("Notification Received:", notification);
+  useEffect(() => {
+    // Get push token
+    registerForPushNotificationsAsync().then((token) => {
+      setExpoPushToken(token || "");
+      console.log("Push Token:", token);
     });
 
-  // LISTENER 2: When user taps notification
-  responseListener.current =
-    Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log("Notification Tapped:", response);
+    // LISTENER 1: Foreground notification
+    notificationListener.current =
+      Notifications.addNotificationReceivedListener((notification) => {
+        console.log("Notification Received:", notification);
+      });
 
-      const data = response.notification.request.content.data;
+    // LISTENER 2: When user taps notification
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        console.log("Notification Tapped:", response);
 
-      if (data && data.bookingData) {
-        handleIncomingRide(data.bookingData);
-      } else {
-        router.push("/(driver)/notifications");
-      }
-    });
+        const data = response.notification.request.content.data;
 
-  // ✅ CLEANUP (UPDATED - NO ERROR)
-  return () => {
-    notificationListener.current?.remove();
-    responseListener.current?.remove();
-  };
-}, []);
+        if (data && data.bookingData) {
+          handleIncomingRide(data.bookingData);
+        } else {
+          router.push("/(driver)/notifications");
+        }
+      });
+
+    // ✅ CLEANUP (UPDATED - NO ERROR)
+    return () => {
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
+  }, []);
 
   // --- 2. SOCKET SETUP (Still useful for foreground updates) ---
   useEffect(() => {
@@ -148,18 +149,18 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
     }).start();
   };
 
- const playNotificationSound = async () => {
-  try {
-    const { sound } = await Audio.Sound.createAsync(
-      require("../assets/notification.mp3"),
-      { shouldPlay: true, isLooping: true }
-    );
-    soundObject.current = sound;
-    await sound.playAsync();
-  } catch (error) {
-    console.log("Sound failed");
-  }
-};
+  const playNotificationSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require("../assets/notification.mp3"),
+        { shouldPlay: true, isLooping: true },
+      );
+      soundObject.current = sound;
+      await sound.playAsync();
+    } catch (error) {
+      console.log("Sound failed");
+    }
+  };
   const startTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
@@ -172,34 +173,48 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
     }, 1000);
   };
 
- const stopAlerts = async () => {
-  Vibration.cancel();
+  const stopAlerts = async () => {
+    Vibration.cancel();
 
-  if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
 
-  try {
-    if (soundObject.current) {
-      await soundObject.current.stopAsync();
-      await soundObject.current.unloadAsync();
-      soundObject.current = null;
-    }
-  } catch (e) {}
+    try {
+      if (soundObject.current) {
+        await soundObject.current.stopAsync();
+        await soundObject.current.unloadAsync();
+        soundObject.current = null;
+      }
+    } catch (e) {}
+  };
+
+
+
+  const requestPermission = async () => {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+  if (status !== "granted") {
+    alert("Permission required to access gallery");
+    return false;
+  }
+  return true;
 };
 
   // --- 4. PROFILE IMAGE LOGIC ---
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
+ const pickImage = async () => {
+  const hasPermission = await requestPermission();
+  if (!hasPermission) return;
 
-    if (!result.canceled) {
-      setPendingImage(result.assets[0].uri);
-      setIsConfirmModalVisible(true);
-    }
-  };
+  let result = await ImagePicker.launchImageLibraryAsync({
+    // mediaTypes: ImagePicker.MediaType.Images, // ✅ correct
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 1,
+  });
+
+  if (!result.canceled) {
+    console.log(result.assets[0].uri);
+  }
+};
 
   const confirmImage = () => {
     setProfileImage(pendingImage);
@@ -320,7 +335,7 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
                     style={styles.avatarImg}
                   />
                 ) : (
-                  <Ionicons name="person" size={30} color="#1E88E5" />
+                  <Ionicons name="person" size={30} color="#000" />
                 )}
               </View>
               <View>
@@ -334,13 +349,13 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
                 style={styles.bellButton}
                 onPress={() => router.push("/(driver)/wallet")}
               >
-                <Ionicons name="wallet-outline" size={24} color="#333" />
+                <Ionicons name="wallet-outline" size={24} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.bellButton}
                 onPress={() => router.push("/(driver)/notifications")}
               >
-                <Ionicons name="notifications-outline" size={24} color="#333" />
+                <Ionicons name="notifications-outline" size={24} color="#fff" />
                 <View style={styles.notificationDot} />
               </TouchableOpacity>
             </View>
@@ -358,7 +373,7 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
             style={styles.earningsWrapper}
           >
             <LinearGradient
-              colors={["#1565C0", "#42A5F5"]}
+              colors={["#000", "#aaa"]}
               style={styles.earningsCard}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -386,15 +401,15 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
           style={styles.statusCard}
         >
           <LinearGradient
-            colors={isOnline ? ["#E3F2FD", "#BBDEFB"] : ["#FFEBEE", "#FFCDD2"]}
-            style={styles.statusGradient}
+            colors={isOnline ? ["#fff", "#fff"] : ["#FFEBEE", "#FFCDD2"]}
+            style={[styles.statusGradient]}
           >
             <View style={styles.statusRow}>
               <View>
                 <Text
                   style={[
                     styles.statusText,
-                    { color: isOnline ? "#1565C0" : "#C62828" },
+                    { color: isOnline ? "#000" : "#C62828" },
                   ]}
                 >
                   {isOnline ? "You are Online" : "You are Offline"}
@@ -406,8 +421,8 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
                 </Text>
               </View>
               <Switch
-                trackColor={{ false: "#ef9a9a", true: "#90CAF9" }}
-                thumbColor={isOnline ? "#1E88E5" : "#f4f3f4"}
+                trackColor={{ false: "#aaa", true: "#aaa" }}
+                thumbColor={isOnline ? "#000" : "#f4f3f4"}
                 onValueChange={toggleSwitch}
                 value={isOnline}
                 style={{ transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }] }}
@@ -423,7 +438,7 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
             delay={600}
             style={styles.statCard}
           >
-            <Ionicons name="star-half" size={28} color="#1E88E5" />
+            <Ionicons name="star-half" size={28} color="#111" />
             <Text style={styles.statNumber}>4.85</Text>
             <Text style={styles.statLabel}>Rating</Text>
           </Animatable.View>
@@ -433,7 +448,7 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
             delay={600}
             style={styles.statCard}
           >
-            <Ionicons name="map-outline" size={28} color="#1E88E5" />
+            <Ionicons name="map-outline" size={28} color="#111" />
             <Text style={styles.statNumber}>2,450</Text>
             <Text style={styles.statLabel}>Km Driven</Text>
           </Animatable.View>
@@ -490,10 +505,7 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
                 <View
                   style={[styles.routeDot, { backgroundColor: "#4CAF50" }]}
                 />
-                <View style={styles.routeLine} />
-                <View
-                  style={[styles.routeDot, { backgroundColor: "#F44336" }]}
-                />
+              
               </View>
 
               <View style={styles.routeTexts}>
@@ -504,10 +516,7 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
                   </Text>
                 </View>
                 <View style={[styles.locationBox, { marginTop: 15 }]}>
-                  <Text style={styles.locationLabel}>DROP OFF</Text>
-                  <Text style={styles.locationText}>
-                    {bookingData?.dropoff || "123 Main Street Mall"}
-                  </Text>
+               
                 </View>
               </View>
             </View>
@@ -519,7 +528,7 @@ const responseListener = useRef<Notifications.Subscription | null>(null);
 
               <TouchableOpacity onPress={acceptRide} disabled={isLoading}>
                 <LinearGradient
-                  colors={["#28a745", "#5cb85c"]}
+                  colors={["#000", "#000"]}
                   style={styles.acceptBtn}
                 >
                   {isLoading ? (
@@ -561,7 +570,6 @@ async function registerForPushNotificationsAsync() {
 
     // ✅ NEW WAY (important for production)
     token = (await Notifications.getExpoPushTokenAsync()).data;
-
   } else {
     alert("Use real device");
   }
@@ -581,7 +589,7 @@ async function registerForPushNotificationsAsync() {
 
 const styles = StyleSheet.create({
   // ... (Keep your existing styles)
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: "#000" },
   header: { paddingHorizontal: 20, marginBottom: 10, marginTop: 10 },
   headerTop: {
     flexDirection: "row",
@@ -602,8 +610,8 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
   },
   avatarImg: { width: "100%", height: "100%" },
-  greeting: { fontSize: 14, color: "#90A4AE" },
-  driverName: { fontSize: 20, fontWeight: "bold", color: "#333" },
+  greeting: { fontSize: 14, color: "#fff" },
+  driverName: { fontSize: 20, fontWeight: "bold", color: "#fff" },
   bellButton: { position: "relative", padding: 5, marginLeft: 10 },
   notificationDot: {
     position: "absolute",
@@ -612,7 +620,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#FF5722",
+    backgroundColor: "#22ff52",
   },
   statusCard: {
     marginHorizontal: 20,
@@ -668,12 +676,12 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, color: "#888", marginTop: 2 },
   testBtn: {
     marginHorizontal: 20,
-    backgroundColor: "#1E88E5",
+    backgroundColor: "#fff",
     padding: 15,
     borderRadius: 10,
     alignItems: "center",
   },
-  testBtnText: { color: "#fff", fontWeight: "bold" },
+  testBtnText: { color: "#000", fontWeight: "bold" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
