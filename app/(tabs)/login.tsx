@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -19,108 +20,214 @@ import {
 import * as Animatable from "react-native-animatable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import * as ImagePicker from "expo-image-picker";
 
 const { width, height } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const router = useRouter();
 
-  // State
+  // --- State ---
   const [userType, setUserType] = useState<"user" | "driver">("user");
-  const [stage, setStage] = useState<"phone" | "otp">("phone");
+  const [stage, setStage] = useState<
+    "phone" | "otp" | "newUser" | "existingDriver" | "newDriver"
+  >("phone");
+
   const [phoneNumber, setPhoneNumber] = useState<string>("");
-  const [driverId, setDriverId] = useState<string>("");
   const [otp, setOtp] = useState<string[]>(["", "", "", ""]);
   const [loading, setLoading] = useState(false);
 
-  // NEW: State for custom popup
+  // New User Fields
+  const [name, setName] = useState("");
+  const [gender, setGender] = useState<"male" | "female" | "other" | "">("");
+
+  // Driver Fields
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [licensePhoto, setLicensePhoto] = useState<string | null>(null);
+  const [livePhoto, setLivePhoto] = useState<string | null>(null);
+
+  // Modal State
   const [isModalVisible, setModalVisible] = useState(false);
 
   const otpInputs = useRef<(TextInput | null)[]>([]);
+
+  // --- Image Picker Logic ---
+
+  const takeLivePhoto = async () => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permissionResult.granted) {
+      Toast.show({
+        type: "error",
+        text1: "Permission Denied",
+        text2: "Camera access is required.",
+      });
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+      cameraType: ImagePicker.CameraType.front, // Selfie mode
+    });
+
+    if (!result.canceled) {
+      setLivePhoto(result.assets[0].uri);
+    }
+  };
+
+  const pickLicensePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setLicensePhoto(result.assets[0].uri);
+    }
+  };
 
   // --- Logic Functions ---
 
   const handleUserTypeChange = (type: "user" | "driver") => {
     if (type === "driver") {
-      // Show the custom cute popup instead of Toast/Alert
       setModalVisible(true);
     } else {
       setUserType(type);
-      setStage("phone");
-      setOtp(["", "", "", ""]);
+      resetForms();
     }
   };
 
-  // NEW: Handle confirmation from the popup
   const handleDriverConfirm = () => {
     setModalVisible(false);
     setUserType("driver");
+    resetForms();
+  };
+
+  const resetForms = () => {
     setStage("phone");
     setOtp(["", "", "", ""]);
+    setName("");
+    setGender("");
+    setLicenseNumber("");
+    setLicensePhoto(null);
+    setLivePhoto(null);
   };
 
   const handleContinue = async () => {
     if (phoneNumber.length < 10) {
       Toast.show({
         type: "error",
-        text1: "Oops!",
-        text2: "Please enter a valid 10-digit phone number.",
-        position: "top",
-        visibilityTime: 3000,
+        text1: "Invalid Phone",
+        text2: "Enter 10 digits.",
       });
       return;
     }
 
-    if (userType === "driver" && stage === "phone") {
-      if (driverId.length < 4) {
-        Toast.show({
-          type: "error",
-          text1: "Validation Error",
-          text2: "Please enter a valid Driver ID.",
-          position: "top",
-          visibilityTime: 3000,
-        });
-        return;
-      }
-    }
-
     setLoading(true);
 
+    // PHONE STAGE -> Send OTP
     if (stage === "phone") {
       setTimeout(() => {
         setLoading(false);
         Toast.show({
           type: "success",
-          text1: "Success",
-          text2: `OTP sent to +91${phoneNumber}`,
-          position: "top",
-          visibilityTime: 3000,
+          text1: "OTP Sent",
+          text2: `Code sent to +91${phoneNumber}`,
         });
         setStage("otp");
       }, 1500);
-    } else {
+    }
+    // OTP STAGE -> Verify & Redirect based on logic
+    else if (stage === "otp") {
       const otpCode = otp.join("");
       if (otpCode.length < 4) {
         setLoading(false);
         Toast.show({
           type: "error",
-          text1: " Error",
-          text2: "Please enter the complete OTP.",
-          position: "top",
-          visibilityTime: 3000,
+          text1: "Invalid OTP",
+          text2: "Enter complete code.",
         });
         return;
       }
 
+      // MOCK API CALL TO CHECK IF USER EXISTS
       setTimeout(() => {
         setLoading(false);
+
+        // DEMO LOGIC: If phone ends with '123' treat as Existing User, else New
+        const isExisting = phoneNumber.endsWith("123");
+
         if (userType === "user") {
-          router.replace("/(user)/userdashboard");
+          if (isExisting) {
+            router.replace("/(user)/userdashboard");
+          } else {
+            setStage("newUser"); // Go to registration form
+          }
         } else {
-          router.replace("/(driver)/driver-onboarding");
+          // Driver Flow
+          if (isExisting) {
+            setStage("existingDriver"); // Only needs Live Photo
+          } else {
+            setStage("newDriver"); // Needs full details
+          }
         }
       }, 1500);
     }
+  };
+
+  // FINAL SUBMISSION FOR NEW/EXISTING PROFILES
+  const handleFinalSubmit = () => {
+    setLoading(true);
+
+    // Validations
+    if (stage === "newUser") {
+      if (!name || !gender) {
+        Toast.show({
+          type: "error",
+          text1: "Incomplete",
+          text2: "Name & Gender required.",
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (stage === "newDriver") {
+      if (!name || !licenseNumber || !licensePhoto || !livePhoto) {
+        Toast.show({
+          type: "error",
+          text1: "Incomplete",
+          text2: "All fields & photos required.",
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (stage === "existingDriver") {
+      if (!livePhoto) {
+        Toast.show({
+          type: "error",
+          text1: "Verification Failed",
+          text2: "Live photo required.",
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
+    // API CALL HERE
+    setTimeout(() => {
+      setLoading(false);
+      if (userType === "user") {
+        router.replace("/(user)/userdashboard");
+      } else {
+        router.replace("/(driver)/driverdashboard");
+      }
+    }, 2000);
   };
 
   const handleOtpChange = (text: string, index: number) => {
@@ -131,11 +238,20 @@ export default function LoginScreen() {
     if (!text && index > 0) otpInputs.current[index - 1]?.focus();
   };
 
+  // --- RENDER HELPERS ---
+
+  const renderBackButton = () => (
+    <TouchableOpacity onPress={() => setStage("phone")} style={styles.backLink}>
+      <Ionicons name="arrow-back" size={20} color="#aaa" />
+      <Text style={styles.backText}> Back</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#000" />
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      {/* Cute Floating Background Elements */}
+      {/* Background Circles */}
       <Animatable.View
         animation="pulse"
         iterationCount="infinite"
@@ -167,259 +283,458 @@ export default function LoginScreen() {
           },
         ]}
       />
-      <Animatable.View
-        animation="pulse"
-        iterationCount="infinite"
-        duration={6000}
-        delay={500}
-        style={[
-          styles.bgCircle,
-          {
-            top: 200,
-            right: 20,
-            width: 100,
-            height: 100,
-            backgroundColor: "#111",
-          },
-        ]}
-      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        {/* Logo Section */}
-        <Animatable.View
-          animation="bounceInDown"
-          delay={200}
-          style={styles.logoContainer}
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
         >
-          <Image
-            source={require("../../assets/images/CDlogo.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <Animatable.Text
-            animation="fadeIn"
-            delay={800}
-            style={styles.appName}
+          {/* Logo Section */}
+          <Animatable.View
+            animation="bounceInDown"
+            delay={200}
+            style={styles.logoContainer}
           >
-            CallDriver
-          </Animatable.Text>
-          <Animatable.Text
-            animation="fadeIn"
-            delay={1000}
-            style={styles.tagline}
+            <Image
+              source={require("../../assets/images/calldriverapplogo.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            <Animatable.Text
+              animation="fadeIn"
+              delay={800}
+              style={styles.appName}
+            >
+              CallDriver
+            </Animatable.Text>
+            <Animatable.Text
+              animation="fadeIn"
+              delay={1000}
+              style={styles.tagline}
+            >
+              Your Ride, Your Way
+            </Animatable.Text>
+          </Animatable.View>
+
+          {/* Role Switcher */}
+          <Animatable.View
+            animation="bounceIn"
+            delay={600}
+            style={styles.roleContainer}
           >
-            Your Ride, Your Way
-          </Animatable.Text>
-        </Animatable.View>
-
-        {/* Role Switcher */}
-        <Animatable.View
-          animation="bounceIn"
-          delay={600}
-          style={styles.roleContainer}
-        >
-          <View style={styles.roleRow}>
-            {/* User Button */}
-            <TouchableOpacity
-              onPress={() => handleUserTypeChange("user")}
-              style={styles.roleTouch}
-              activeOpacity={0.7}
-            >
-              <Animatable.View
-                style={[
-                  styles.roleBtn,
-                  userType === "user" && styles.roleBtnActive,
-                ]}
-                animation={userType === "user" ? "pulse" : undefined}
-                iterationCount={userType === "user" ? "infinite" : 1}
+            <View style={styles.roleRow}>
+              <TouchableOpacity
+                onPress={() => handleUserTypeChange("user")}
+                style={styles.roleTouch}
               >
-                <Ionicons
-                  name="person-circle"
-                  size={26}
-                  color={userType === "user" ? "#fff" : "#000"}
-                />
-                <Text
+                <Animatable.View
                   style={[
-                    styles.roleText,
-                    userType === "user" && styles.roleTextActive,
+                    styles.roleBtn,
+                    userType === "user" && styles.roleBtnActive,
                   ]}
+                  animation={userType === "user" ? "pulse" : undefined}
+                  iterationCount={userType === "user" ? "infinite" : 1}
                 >
-                  User
-                </Text>
-              </Animatable.View>
-            </TouchableOpacity>
-
-            {/* Driver Button */}
-            <TouchableOpacity
-              onPress={() => handleUserTypeChange("driver")}
-              style={styles.roleTouch}
-              activeOpacity={0.7}
-            >
-              <Animatable.View
-                style={[
-                  styles.roleBtn,
-                  userType === "driver" && styles.roleBtnActive,
-                ]}
-                animation={userType === "driver" ? "pulse" : undefined}
-                iterationCount={userType === "driver" ? "infinite" : 1}
-              >
-                <Ionicons
-                  name="car-sport"
-                  size={26}
-                  color={userType === "driver" ? "#fff" : "#000"}
-                />
-                <Text
-                  style={[
-                    styles.roleText,
-                    userType === "driver" && styles.roleTextActive,
-                  ]}
-                >
-                  Driver
-                </Text>
-              </Animatable.View>
-            </TouchableOpacity>
-          </View>
-        </Animatable.View>
-
-        {/* Main Card */}
-        <Animatable.View
-          animation="slideInUp"
-          duration={800}
-          style={styles.card}
-        >
-          <View style={styles.cardHeader}>
-            <Ionicons name="enter-outline" size={24} color="#fff" />
-            <Text style={styles.cardTitle}>
-              {stage === "phone" ? "  Login / Register" : "  Verify OTP"}
-            </Text>
-          </View>
-
-          <Text style={styles.cardSubtitle}>
-            {stage === "phone"
-              ? "Enter your details to continue"
-              : `Enter code sent to +91${phoneNumber}`}
-          </Text>
-
-          {stage === "phone" ? (
-            <>
-              {/* Phone Input */}
-              <View style={styles.inputWrapper}>
-                <Ionicons
-                  name="call-outline"
-                  size={22}
-                  color="#fff"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Phone Number"
-                  placeholderTextColor="#777"
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  onChangeText={setPhoneNumber}
-                  value={phoneNumber}
-                />
-              </View>
-
-              {/* DRIVER VALIDATION INPUT */}
-              {userType === "driver" && (
-                <Animatable.View animation="fadeInDown" duration={300}>
-                  <View
-                    style={[styles.inputWrapper, { borderColor: "#fff" }]}
+                  <Ionicons
+                    name="person-circle"
+                    size={26}
+                    color={userType === "user" ? "#fff" : "#000"}
+                  />
+                  <Text
+                    style={[
+                      styles.roleText,
+                      userType === "user" && styles.roleTextActive,
+                    ]}
                   >
-                    <Ionicons
-                      name="id-card-outline"
-                      size={22}
-                      color="#fff"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter Driver ID / License"
-                      placeholderTextColor="#B0BEC5"
-                      onChangeText={setDriverId}
-                      value={driverId}
-                    />
-                  </View>
-                  <Text style={styles.driverNote}>
-                    * Verification required for Drivers
+                    User
                   </Text>
                 </Animatable.View>
-              )}
-            </>
-          ) : (
-            /* OTP Input */
-            <View style={styles.otpContainer}>
-              {[0, 1, 2, 3].map((_, index) => (
-                <TextInput
-                  key={index}
-                  ref={(ref) => {
-                    otpInputs.current[index] = ref;
-                  }}
-                  style={styles.otpInput}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  onChangeText={(text) => handleOtpChange(text, index)}
-                  value={otp[index]}
-                  selectionColor="#1E88E5"
-                  onKeyPress={(e) =>
-                    e.nativeEvent.key === "Backspace" &&
-                    handleOtpChange("", index)
-                  }
-                />
-              ))}
-            </View>
-          )}
+              </TouchableOpacity>
 
-          {/* Action Button */}
-          <TouchableOpacity
-            onPress={handleContinue}
-            disabled={loading}
-            style={styles.loginBtn}
-          >
-            <LinearGradient
-              colors={["#000", "#aaa"]}
-              style={styles.btnGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Text style={styles.loginBtnText}>
-                    {stage === "phone" ? "CONTINUE" : "VERIFY"}
-                  </Text>
+              <TouchableOpacity
+                onPress={() => handleUserTypeChange("driver")}
+                style={styles.roleTouch}
+              >
+                <Animatable.View
+                  style={[
+                    styles.roleBtn,
+                    userType === "driver" && styles.roleBtnActive,
+                  ]}
+                  animation={userType === "driver" ? "pulse" : undefined}
+                  iterationCount={userType === "driver" ? "infinite" : 1}
+                >
                   <Ionicons
-                    name="arrow-forward"
-                    size={20}
-                    color="#fff"
-                    style={{ marginLeft: 10 }}
+                    name="car-sport"
+                    size={26}
+                    color={userType === "driver" ? "#fff" : "#000"}
                   />
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.roleText,
+                      userType === "driver" && styles.roleTextActive,
+                    ]}
+                  >
+                    Driver
+                  </Text>
+                </Animatable.View>
+              </TouchableOpacity>
+            </View>
+          </Animatable.View>
 
-          {stage === "otp" && (
-            <TouchableOpacity
-              onPress={() => setStage("phone")}
-              style={styles.backLink}
-            >
-              <Ionicons name="arrow-back" size={14} color="#aaa" />
-              <Text style={styles.backText}> Change Number</Text>
-            </TouchableOpacity>
-          )}
-        </Animatable.View>
+          {/* Main Card */}
+          <Animatable.View
+            animation="slideInUp"
+            duration={800}
+            style={styles.card}
+          >
+            {/* STAGE: PHONE */}
+            {stage === "phone" && (
+              <>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="enter-outline" size={24} color="#fff" />
+                  <Text style={styles.cardTitle}> Login / Register</Text>
+                </View>
+                <Text style={styles.cardSubtitle}>
+                  Enter your phone number to continue
+                </Text>
+
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="call-outline"
+                    size={22}
+                    color="#fff"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Phone Number"
+                    placeholderTextColor="#777"
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    onChangeText={setPhoneNumber}
+                    value={phoneNumber}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleContinue}
+                  disabled={loading}
+                  style={styles.loginBtn}
+                >
+                  <LinearGradient
+                    colors={["#000", "#aaa"]}
+                    style={styles.btnGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>CONTINUE</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* STAGE: OTP */}
+            {stage === "otp" && (
+              <>
+                {renderBackButton()}
+                <View style={styles.cardHeader}>
+                  <Ionicons name="key-outline" size={24} color="#fff" />
+                  <Text style={styles.cardTitle}> Verify OTP</Text>
+                </View>
+                <Text style={styles.cardSubtitle}>
+                  Code sent to +91{phoneNumber}
+                </Text>
+
+                <View style={styles.otpContainer}>
+                  {[0, 1, 2, 3].map((_, index) => (
+                    <TextInput
+                      key={index}
+                      ref={(ref: TextInput | null) => {
+                        otpInputs.current[index] = ref;
+                      }}
+                      style={styles.otpInput}
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      onChangeText={(text) => handleOtpChange(text, index)}
+                      value={otp[index]}
+                      selectionColor="#fff"
+                    />
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleContinue}
+                  disabled={loading}
+                  style={styles.loginBtn}
+                >
+                  <LinearGradient
+                    colors={["#000", "#aaa"]}
+                    style={styles.btnGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>VERIFY</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* STAGE: NEW USER (Registration) */}
+            {stage === "newUser" && (
+              <>
+                {renderBackButton()}
+                <View style={styles.cardHeader}>
+                  <Ionicons name="person-add-outline" size={24} color="#fff" />
+                  <Text style={styles.cardTitle}> Complete Profile</Text>
+                </View>
+                <Text style={styles.cardSubtitle}>
+                  We need a few more details
+                </Text>
+
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="person-outline"
+                    size={22}
+                    color="#fff"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Full Name"
+                    placeholderTextColor="#777"
+                    onChangeText={setName}
+                    value={name}
+                  />
+                </View>
+
+                <Text style={styles.labelText}>Select Gender</Text>
+                <View style={styles.genderRow}>
+                  {["male", "female", "other"].map((g) => (
+                    <TouchableOpacity
+                      key={g}
+                      style={[
+                        styles.genderBtn,
+                        gender === g && styles.genderActive,
+                      ]}
+                      onPress={() => setGender(g as any)}
+                    >
+                      <Ionicons
+                        name={
+                          g === "male"
+                            ? "male"
+                            : g === "female"
+                              ? "female"
+                              : "transgender"
+                        }
+                        size={20}
+                        color={gender === g ? "#fff" : "#aaa"}
+                      />
+                      <Text
+                        style={[
+                          styles.genderText,
+                          gender === g && { color: "#fff" },
+                        ]}
+                      >
+                        {g.toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleFinalSubmit}
+                  disabled={loading}
+                  style={styles.loginBtn}
+                >
+                  <LinearGradient
+                    colors={["#000", "#aaa"]}
+                    style={styles.btnGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>SAVE & CONTINUE</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* STAGE: EXISTING DRIVER (Verification) */}
+            {stage === "existingDriver" && (
+              <>
+                {renderBackButton()}
+                <View style={styles.cardHeader}>
+                  <Ionicons name="camera-outline" size={24} color="#fff" />
+                  <Text style={styles.cardTitle}> Quick Verification</Text>
+                </View>
+                <Text style={styles.cardSubtitle}>
+                  Please take a live photo to verify identity
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.photoUploadBox}
+                  onPress={takeLivePhoto}
+                >
+                  {livePhoto ? (
+                    <Image
+                      source={{ uri: livePhoto }}
+                      style={styles.previewImg}
+                    />
+                  ) : (
+                    <View style={styles.placeholderBox}>
+                      <Ionicons name="camera" size={40} color="#555" />
+                      <Text style={{ color: "#555", marginTop: 10 }}>
+                        Tap to take Live Photo
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleFinalSubmit}
+                  disabled={loading}
+                  style={styles.loginBtn}
+                >
+                  <LinearGradient
+                    colors={["#000", "#aaa"]}
+                    style={styles.btnGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>VERIFY & START</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* STAGE: NEW DRIVER (Full Onboarding) */}
+            {stage === "newDriver" && (
+              <>
+                {renderBackButton()}
+                <View style={styles.cardHeader}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={24}
+                    color="#fff"
+                  />
+                  <Text style={styles.cardTitle}> Driver Onboarding</Text>
+                </View>
+                <Text style={styles.cardSubtitle}>
+                  Complete your profile to start earning
+                </Text>
+
+                {/* Removed Nested ScrollView - content flows naturally now */}
+                
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="person-outline"
+                    size={22}
+                    color="#fff"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Full Name"
+                    placeholderTextColor="#777"
+                    onChangeText={setName}
+                    value={name}
+                  />
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="card-outline"
+                    size={22}
+                    color="#fff"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="License Number"
+                    placeholderTextColor="#777"
+                    onChangeText={setLicenseNumber}
+                    value={licenseNumber}
+                  />
+                </View>
+
+                {/* License Photo */}
+                <Text style={styles.labelText}>License Photo</Text>
+                <TouchableOpacity
+                  style={styles.docUploadBox}
+                  onPress={pickLicensePhoto}
+                >
+                  {licensePhoto ? (
+                    <Image
+                      source={{ uri: licensePhoto }}
+                      style={styles.docPreview}
+                    />
+                  ) : (
+                    <View style={styles.placeholderDoc}>
+                      <Ionicons name="image-outline" size={30} color="#555" />
+                      <Text style={{ color: "#555" }}>Upload License</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Live Photo */}
+                <Text style={styles.labelText}>Live Verification Photo</Text>
+                <TouchableOpacity
+                  style={styles.docUploadBox}
+                  onPress={takeLivePhoto}
+                >
+                  {livePhoto ? (
+                    <Image
+                      source={{ uri: livePhoto }}
+                      style={styles.docPreview}
+                    />
+                  ) : (
+                    <View style={styles.placeholderDoc}>
+                      <Ionicons
+                        name="camera-outline"
+                        size={30}
+                        color="#555"
+                      />
+                      <Text style={{ color: "#555" }}>Take Selfie</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleFinalSubmit}
+                  disabled={loading}
+                  style={styles.loginBtn}
+                >
+                  <LinearGradient
+                    colors={["#000", "#aaa"]}
+                    style={styles.btnGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.loginBtnText}>SUBMIT FOR REVIEW</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+          </Animatable.View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* CUSTOM CUTE POPUP MODAL */}
+      {/* Driver Mode Modal */}
       <Modal
         animationType="fade"
-        transparent={true}
+        transparent
         visible={isModalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
@@ -429,42 +744,25 @@ export default function LoginScreen() {
             duration={600}
             style={styles.modalCard}
           >
-            {/* Icon Container with Gradient */}
             <LinearGradient
-              colors={["#000", "#000"]}
+              colors={["#000", "#111"]}
               style={styles.modalIconCircle}
             >
               <Ionicons name="car-sport" size={40} color="#fff" />
             </LinearGradient>
-
             <Text style={styles.modalTitle}>Driver Mode</Text>
             <Text style={styles.modalText}>
-              You are switching to Driver Mode. Please ensure you have your
-              Driver ID or License handy to proceed with verification.
+              You are switching to Driver Mode. Ensure you have your documents
+              ready.
             </Text>
-
-            {/* Cute Button */}
             <TouchableOpacity
               onPress={handleDriverConfirm}
               style={styles.modalBtnWrapper}
             >
-              <LinearGradient
-                colors={["#000", "#aaa"]}
-                style={styles.modalBtn}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
+              <LinearGradient colors={["#000", "#aaa"]} style={styles.modalBtn}>
                 <Text style={styles.modalBtnText}>Got it!</Text>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color="#fff"
-                  style={{ marginLeft: 8 }}
-                />
               </LinearGradient>
             </TouchableOpacity>
-
-            {/* Secondary Cancel Action */}
             <TouchableOpacity
               onPress={() => setModalVisible(false)}
               style={styles.modalCancelBtn}
@@ -479,41 +777,19 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  bgCircle: {
-    position: "absolute",
-    borderRadius: 200,
-    opacity: 0.6,
-  },
-  logoContainer: {
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  logoImage: {
-    width: 130,
-    height: 130,
-  },
+  container: { flex: 1, backgroundColor: "#000" },
+  bgCircle: { position: "absolute", borderRadius: 200, opacity: 0.6 },
+  logoContainer: { alignItems: "center", marginTop: 20, marginBottom: 10 },
+  logoImage: { width: 130, height: 130 },
   appName: {
     fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
     letterSpacing: 1,
   },
-  tagline: {
-    color: "#ece0e0",
-    fontSize: 14,
-    marginTop: 2,
-    fontWeight: "600",
-    letterSpacing: 1,
-  },
-  roleContainer: {
-    marginBottom: 15,
-    paddingHorizontal: 30,
-  },
+  tagline: { color: "#ece0e0", fontSize: 14, marginTop: 2, fontWeight: "600" },
+
+  roleContainer: { marginBottom: 15, paddingHorizontal: 30 },
   roleRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -521,9 +797,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     padding: 5,
   },
-  roleTouch: {
-    flex: 1,
-  },
+  roleTouch: { flex: 1 },
   roleBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -531,20 +805,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 30,
   },
-  roleBtnActive: {
-    backgroundColor: "#111",
-    boxShadow: "0px 4px 8px rgba(30, 136, 229, 0.3)",
-    elevation: 5,
-  },
-  roleText: {
-    marginLeft: 8,
-    color: "#000",
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  roleTextActive: {
-    color: "#fff",
-  },
+  roleBtnActive: { backgroundColor: "#111", elevation: 5 },
+  roleText: { marginLeft: 8, color: "#000", fontWeight: "bold", fontSize: 15 },
+  roleTextActive: { color: "#fff" },
+
   card: {
     flex: 1,
     backgroundColor: "#111",
@@ -552,26 +816,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 25,
-    boxShadow: "0px -5px 15px rgba(0, 0, 0, 0.05)",
-    elevation: 10,
     borderWidth: 1,
-    borderColor: "#E3F2FD",
+    borderColor: "#333",
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 5,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: "#aaa",
-    marginBottom: 25,
-  },
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 5 },
+  cardTitle: { fontSize: 22, fontWeight: "bold", color: "#fff" },
+  cardSubtitle: { fontSize: 14, color: "#aaa", marginBottom: 25 },
+
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -583,23 +834,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#333",
   },
-  inputIcon: {
-    marginRight: 10,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#fff",
-    fontWeight: "500",
-  },
-  driverNote: {
-    color: "#fff",
-    fontSize: 12,
-    marginTop: -10,
-    marginBottom: 15,
-    marginLeft: 5,
-    fontWeight: "600",
-  },
+  inputIcon: { marginRight: 10 },
+  textInput: { flex: 1, fontSize: 16, color: "#fff", fontWeight: "500" },
+
   otpContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -610,18 +847,15 @@ const styles = StyleSheet.create({
     height: 65,
     borderRadius: 15,
     borderWidth: 2,
-    borderColor: "#E3F2FD",
+    borderColor: "#333",
     textAlign: "center",
     fontSize: 24,
     fontWeight: "bold",
-    color: "#000",
-    backgroundColor: "#F5F9FF",
+    color: "#fff",
+    backgroundColor: "#1a1a1a",
   },
-  loginBtn: {
-    marginTop: 10,
-    borderRadius: 15,
-    overflow: "hidden",
-  },
+
+  loginBtn: { marginTop: 25, borderRadius: 15, overflow: "hidden" },
   btnGradient: {
     height: 58,
     justifyContent: "center",
@@ -634,22 +868,70 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 1,
   },
-  backLink: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 20,
-    alignItems: "center",
-  },
-  backText: {
+
+  backLink: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  backText: { color: "#aaa", fontSize: 14 },
+
+  // New Styles
+  labelText: {
     color: "#aaa",
-    fontSize: 14,
+    marginBottom: 10,
+    marginTop: 5, // Fixed negative margin issue
     fontWeight: "600",
   },
+  genderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  genderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#333",
+    flex: 1,
+    marginHorizontal: 5,
+    justifyContent: "center",
+  },
+  genderActive: { backgroundColor: "#333", borderColor: "#fff" },
+  genderText: { marginLeft: 5, color: "#aaa", fontWeight: "bold" },
 
-  // --- Custom Modal Styles ---
+  photoUploadBox: {
+    width: "100%",
+    height: 200,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#333",
+    overflow: "hidden",
+    marginBottom: 15,
+  },
+  previewImg: { width: "100%", height: "100%", resizeMode: "cover" },
+  placeholderBox: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#1a1a1a",
+  },
+
+  docUploadBox: {
+    width: "100%",
+    height: 140,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#333",
+    overflow: "hidden",
+    marginBottom: 15,
+    backgroundColor: "#1a1a1a",
+  },
+  docPreview: { width: "100%", height: "100%", resizeMode: "cover" },
+  placeholderDoc: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -659,11 +941,9 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     padding: 25,
     alignItems: "center",
-    shadowColor: "#111",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 15,
+    borderWidth: 1,
+    borderColor: "#333",
+    elevation: 20,
   },
   modalIconCircle: {
     width: 80,
@@ -672,13 +952,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 15,
-    marginTop: -50, // Pull up slightly
+    marginTop: -50,
     borderWidth: 4,
     borderColor: "#fff",
-    shadowColor: "#1E88E5",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
   },
   modalTitle: {
     fontSize: 24,
@@ -690,32 +966,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#ccc",
     textAlign: "center",
-    lineHeight: 22,
     marginBottom: 25,
   },
-  modalBtnWrapper: {
-    width: "100%",
-    borderRadius: 15,
-    overflow: "hidden",
-  },
+  modalBtnWrapper: { width: "100%", borderRadius: 15, overflow: "hidden" },
   modalBtn: {
     height: 55,
     justifyContent: "center",
     alignItems: "center",
     flexDirection: "row",
   },
-  modalBtnText: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  modalCancelBtn: {
-    marginTop: 15,
-    padding: 5,
-  },
-  modalCancelText: {
-    color: "#90A4AE",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  modalBtnText: { fontSize: 17, fontWeight: "bold", color: "#fff" },
+  modalCancelBtn: { marginTop: 15 },
+  modalCancelText: { color: "#90A4AE", fontWeight: "600" },
 });

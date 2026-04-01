@@ -31,12 +31,12 @@ export default function HistoryScreen() {
 
       <View style={styles.routeContainer}>
         <View style={styles.routeRow}>
-          <Ionicons name="ellipse" size={8} color="#28a745" />
+          <Ionicons name="ellipse" size={8} color="#0ff044" />
           <Text style={styles.routeText}>{item.from}</Text>
         </View>
         <View style={styles.dottedLine} />
         <View style={styles.routeRow}>
-          <Ionicons name="location" size={12} color="#dc3545" />
+          <Ionicons name="location" size={12} color="#fb3a4d" />
           <Text style={styles.routeText}>{item.to}</Text>
         </View>
       </View>
@@ -52,7 +52,7 @@ export default function HistoryScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Rides</Text>
         <View style={{ width: 24 }} />
@@ -71,7 +71,7 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
+  container: { flex: 1, backgroundColor: '#000' },
   
   // Header
   header: {
@@ -79,11 +79,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#000',
     borderBottomWidth: 1,
     borderBottomColor: '#eee'
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
   backBtn: { padding: 5 },
 
   // List
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   
   // Card
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#2f2b2b',
     borderRadius: 15,
     padding: 15,
     marginBottom: 15,
@@ -109,15 +109,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  dateText: { color: '#666', fontSize: 12 },
+  dateText: { color: '#fff', fontSize: 12 },
   statusText: { fontWeight: 'bold', fontSize: 12 },
   
   routeContainer: { marginLeft: 5 },
   routeRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 5 },
-  routeText: { marginLeft: 10, fontSize: 15, fontWeight: '500', color: '#333' },
+  routeText: { marginLeft: 10, fontSize: 15, fontWeight: '500', color: '#fff' },
   dottedLine: {
     borderLeftWidth: 1,
-    borderLeftColor: '#ccc',
+    borderLeftColor: '#fff',
     borderStyle: 'dashed',
     height: 15,
     marginLeft: 3.5,
@@ -131,5 +131,5 @@ const styles = StyleSheet.create({
     borderTopColor: '#f0f0f0',
     alignItems: 'flex-end'
   },
-  fareText: { fontSize: 18, fontWeight: 'bold', color: '#007bff' }
+  fareText: { fontSize: 18, fontWeight: 'bold', color: '#fff' }
 });

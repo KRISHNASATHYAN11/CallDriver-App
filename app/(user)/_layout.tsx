@@ -8,7 +8,7 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#007bff',
+        tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#aaa',
         tabBarLabelStyle: styles.tabLabel,
       }}
@@ -58,33 +58,33 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 35,
+    bottom: 40,
     left: 20,
     right: 20,
-    backgroundColor: '#fff',
-    borderRadius: 30,
+    backgroundColor: '#000',
+    borderRadius: 0,
     height: 70,
-    paddingBottom: 10,
-    paddingTop: 10,
+    paddingBottom: 8,
+    paddingTop: 5,
     elevation: 10,
   },
   tabLabel: {
     fontSize: 11,
     fontWeight: '600',
-    marginTop: 4,
+    marginTop:-3,
   },
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
     width: 40,
-    height: 30,
+    height: 24,
   },
   activeDot: {
     position: 'absolute',
-    bottom: -8,
+    bottom:-17,
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#007bff',
+    backgroundColor: '#fff',
   },
 });

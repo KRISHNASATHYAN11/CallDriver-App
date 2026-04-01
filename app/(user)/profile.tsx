@@ -1,32 +1,44 @@
-import React, { useState } from 'react';
-import { 
-  View, Text, StyleSheet, TouchableOpacity, 
-  Image, TextInput, ScrollView, Alert, 
-  Modal, Dimensions, ActivityIndicator, Platform 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  TextInput,
+  ScrollView,
+  Modal,
+  Dimensions,
+  Platform,
+  Pressable,
+  Switch,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import Toast from "react-native-toast-message";
 
-
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 export default function ProfileScreen() {
-  // --- State for Form ---
+  // --- Profile Data ---
   const [name, setName] = useState("John Doe");
   const [email, setEmail] = useState("john.doe@example.com");
-  const [phone, setPhone] = useState("+91 9876543210");
+  const [phone, setPhone] = useState("+91 98765 43210");
+  const [bio, setBio] = useState("Live to ride 🚗");
 
-  // --- State for Image Logic (Exactly like DriverDashboard) ---
+  // --- Image State ---
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
 
-  // --- 1. Pick Image Logic ---
+  // --- Edit Mode ---
+  const [isEditing, setIsEditing] = useState(false);
+
+  // --- Image Functions ---
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -34,14 +46,12 @@ export default function ProfileScreen() {
       aspect: [1, 1],
       quality: 1,
     });
-
     if (!result.canceled) {
       setPendingImage(result.assets[0].uri);
-      setIsConfirmModalVisible(true); // Open confirmation modal
+      setIsConfirmModalVisible(true);
     }
   };
 
-  // --- 2. Confirm/Cancel Logic ---
   const confirmImage = () => {
     setProfileImage(pendingImage);
     setIsConfirmModalVisible(false);
@@ -53,304 +63,763 @@ export default function ProfileScreen() {
     setPendingImage(null);
   };
 
-  // --- 3. Avatar Tap Logic ---
   const handleAvatarPress = () => {
     if (profileImage) {
-      setIsViewModalVisible(true); // View full image
+      setIsViewModalVisible(true);
     } else {
-      pickImage(); // Pick new image
+      pickImage();
     }
   };
 
   const handleSave = () => {
-      Toast.show({
-            type: "success",
-            text1: "Success",
-            text2: "Profile updated successfully!",
-            position: "top",
-            topOffset: 100,
-          });
+    setIsEditing(false);
+    Toast.show({
+      type: "success",
+      text1: "Profile Updated",
+      text2: "Your changes have been saved ✨",
+      position: "top",
+      topOffset: 60,
+    });
   };
+
+  // --- Editable Fields ---
+  const [editName, setEditName] = useState(name);
+  const [editEmail, setEditEmail] = useState(email);
+  const [editPhone, setEditPhone] = useState(phone);
+  const [editBio, setEditBio] = useState(bio);
+
+  const startEditing = () => {
+    setEditName(name);
+    setEditEmail(email);
+    setEditPhone(phone);
+    setEditBio(bio);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
+
+  const saveEditing = () => {
+    setName(editName);
+    setEmail(editEmail);
+    setEditPhone(editPhone);
+    setPhone(editPhone);
+    setBio(editBio);
+    setIsEditing(false);
+    Toast.show({
+      type: "success",
+      text1: "Profile Updated",
+      text2: "Your changes have been saved ✨",
+      position: "top",
+      topOffset: 60,
+    });
+  };
+
+  // --- Stats ---
+  const stats = [
+    { label: "Rides", value: "24" },
+    { label: "Reviews", value: "4.8★" },
+    { label: "Member", value: "2024" },
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          <View style={{ width: 24 }} />
-        </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        bounces={false}
+      >
+        {/* ===== BLACK HEADER ===== */}
+        <LinearGradient
+          colors={["#0a0a0a", "#1a1a1a"]}
+          style={styles.headerGradient}
+        >
+          {/* Top Bar */}
+          <View style={styles.topBar}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.iconBtn}
+            >
+              <Ionicons name="arrow-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Profile</Text>
+            {!isEditing ? (
+              <TouchableOpacity onPress={startEditing} style={styles.iconBtn}>
+                <Ionicons name="create-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={cancelEditing} style={styles.iconBtn}>
+                <Ionicons name="close" size={22} color="#ff4757" />
+              </TouchableOpacity>
+            )}
+          </View>
 
-        {/* Profile Image - Updated Logic */}
-        <TouchableOpacity style={styles.avatarContainer} onPress={handleAvatarPress}>
-          {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.avatar} />
+          {/* Avatar */}
+          <View style={styles.avatarWrapper}>
+            <Pressable
+              onPress={handleAvatarPress}
+              style={styles.avatarPressable}
+            >
+              {profileImage ? (
+                <Image source={{ uri: profileImage }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={50} color="#555" />
+                </View>
+              )}
+            </Pressable>
+           
+            {/* WITH THIS */}
+            {!isEditing && !profileImage && (
+              <TouchableOpacity style={styles.cameraBadge} onPress={pickImage}>
+                <Ionicons name="camera" size={14} color="#000" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Name & Bio */}
+          {!isEditing ? (
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{name}</Text>
+              <Text style={styles.profileBio}>{bio}</Text>
+            </View>
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person" size={60} color="#1E88E5" />
+            <View style={styles.editProfileInfo}>
+              <TextInput
+                style={styles.editNameInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Your name"
+                placeholderTextColor="#555"
+                maxLength={30}
+              />
+              <TextInput
+                style={styles.editBioInput}
+                value={editBio}
+                onChangeText={setEditBio}
+                placeholder="Write a short bio..."
+                placeholderTextColor="#555"
+                maxLength={100}
+                multiline
+              />
             </View>
           )}
-          <View style={styles.editIcon}>
-            <Ionicons name="camera" size={18} color="#fff" />
+
+          {/* Stats Row */}
+          <View style={styles.statsRow}>
+            {stats.map((item, i) => (
+              <View key={i} style={styles.statItem}>
+                <Text style={styles.statValue}>{item.value}</Text>
+                <Text style={styles.statLabel}>{item.label}</Text>
+              </View>
+            ))}
           </View>
-        </TouchableOpacity>
-        <Text style={styles.subtitleText}>Tap photo to update</Text>
 
-        {/* Input Fields */}
-        <View style={styles.formContainer}>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput 
-            style={styles.input} 
-            value={name} 
-            onChangeText={setName} 
-            placeholderTextColor="#999"
-          />
+          {/* Save Button in Edit Mode */}
+          {isEditing && (
+            <TouchableOpacity
+              style={styles.saveBtnWrapper}
+              onPress={saveEditing}
+            >
+              <LinearGradient
+                colors={["#ffffff", "#cccccc"]}
+                style={styles.saveBtn}
+              >
+                <Text style={styles.saveBtnText}>Save Changes</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </LinearGradient>
 
-          <Text style={styles.label}>Email Address</Text>
-          <TextInput 
-            style={styles.input} 
-            value={email} 
-            onChangeText={setEmail} 
-            keyboardType="email-address"
-            placeholderTextColor="#999"
-          />
+        {/* ===== EDIT SECTION (Only in Edit Mode) ===== */}
+        {isEditing && (
+          <View style={styles.editSection}>
+            <Text style={styles.sectionTitle}>Personal Details</Text>
 
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput 
-            style={styles.input} 
-            value={phone} 
-            onChangeText={setPhone} 
-            keyboardType="phone-pad"
-            placeholderTextColor="#999"
-          />
-        </View>
+            <View style={styles.fieldGroup}>
+              <View style={styles.fieldIconRow}>
+                <Ionicons name="mail-outline" size={16} color="#888" />
+                <Text style={styles.fieldLabel}>Email</Text>
+              </View>
+              <TextInput
+                style={styles.editField}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="Email address"
+                placeholderTextColor="#555"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
 
-        {/* Save Button */}
-        <TouchableOpacity onPress={handleSave} style={{ marginTop: 20 }}>
-          <LinearGradient colors={['#007bff', '#00c6ff']} style={styles.saveBtn}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <View style={styles.fieldGroup}>
+              <View style={styles.fieldIconRow}>
+                <Ionicons name="call-outline" size={16} color="#888" />
+                <Text style={styles.fieldLabel}>Phone</Text>
+              </View>
+              <TextInput
+                style={styles.editField}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="Phone number"
+                placeholderTextColor="#555"
+                keyboardType="phone-pad"
+              />
+            </View>
 
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Quick Actions */}
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+
+            <TouchableOpacity style={styles.actionRow}>
+              <View style={styles.actionLeft}>
+                <View
+                  style={[styles.actionIcon, { backgroundColor: "#1a1a2e" }]}
+                >
+                  <Ionicons name="lock-closed-outline" size={18} color="#fff" />
+                </View>
+                <Text style={styles.actionText}>Change Password</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionRow}>
+              <View style={styles.actionLeft}>
+                <View
+                  style={[styles.actionIcon, { backgroundColor: "#1a1a2e" }]}
+                >
+                  <Ionicons
+                    name="notifications-outline"
+                    size={18}
+                    color="#fff"
+                  />
+                </View>
+                <Text style={styles.actionText}>Notifications</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionRow}>
+              <View style={styles.actionLeft}>
+                <View
+                  style={[styles.actionIcon, { backgroundColor: "#2d1a1a" }]}
+                >
+                  <Ionicons name="log-out-outline" size={18} color="#ff4757" />
+                </View>
+                <Text style={[styles.actionText, { color: "#ff4757" }]}>
+                  Log Out
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ===== NORMAL MODE: Menu Section ===== */}
+        {!isEditing && (
+          <View style={styles.menuSection}>
+            <TouchableOpacity style={styles.menuRow}>
+              <View style={styles.menuLeft}>
+                <View style={styles.menuIcon}>
+                  <Ionicons name="car-outline" size={20} color="#fff" />
+                </View>
+                <View>
+                  <Text style={styles.menuTitle}>My Rides</Text>
+                  <Text style={styles.menuSubtitle}>View ride history</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuRow}>
+              <View style={styles.menuLeft}>
+                <View style={styles.menuIcon}>
+                  <Ionicons name="wallet-outline" size={20} color="#fff" />
+                </View>
+                <View>
+                  <Text style={styles.menuTitle}>Payments</Text>
+                  <Text style={styles.menuSubtitle}>
+                    Manage payment methods
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuRow}>
+              <View style={styles.menuLeft}>
+                <View style={styles.menuIcon}>
+                  <Ionicons name="help-circle-outline" size={20} color="#fff" />
+                </View>
+                <View>
+                  <Text style={styles.menuTitle}>Help & Support</Text>
+                  <Text style={styles.menuSubtitle}>FAQs and contact us</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuRow}>
+              <View style={styles.menuLeft}>
+                <View style={[styles.menuIcon, { backgroundColor: "#2d1a1a" }]}>
+                  <Ionicons name="log-out-outline" size={20} color="#ff4757" />
+                </View>
+                <View>
+                  <Text style={[styles.menuTitle, { color: "#ff4757" }]}>
+                    Log Out
+                  </Text>
+                  <Text style={styles.menuSubtitle}>
+                    Sign out of your account
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#555" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Version */}
+        {!isEditing && (
+          <Text style={styles.versionText}>CallDriver v1.0.0</Text>
+        )}
+
+        <View style={{ height: 30 }} />
       </ScrollView>
 
-      {/* ----------------- MODALS (From DriverDashboard) ----------------- */}
-
-      {/* 1. CONFIRMATION MODAL */}
+      {/* ===== CONFIRM IMAGE MODAL ===== */}
       <Modal
         visible={isConfirmModalVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={cancelImage}
       >
-        <View style={styles.modalCenteredView}>
-          <View style={styles.confirmModalView}>
-            <Text style={styles.modalTitle}>Set Profile Picture?</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmModal}>
+            <Text style={styles.confirmTitle}>Use this photo?</Text>
             {pendingImage && (
               <Image
                 source={{ uri: pendingImage }}
                 style={styles.previewImage}
               />
             )}
-            <View style={styles.modalButtonRow}>
+            <View style={styles.modalBtnRow}>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.cancelBtn]}
+                style={styles.modalCancel}
                 onPress={cancelImage}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, styles.confirmBtn]}
+                style={styles.modalConfirm}
                 onPress={confirmImage}
               >
-                <Text style={styles.confirmBtnText}>Accept</Text>
+                <Text style={styles.modalConfirmText}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* 2. VIEW IMAGE MODAL */}
+      {/* ===== VIEW IMAGE MODAL ===== */}
       <Modal
         visible={isViewModalVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setIsViewModalVisible(false)}
       >
-        <View style={styles.modalCenteredView}>
-          <View style={styles.viewModalView}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setIsViewModalVisible(false)}
-            >
-              <Ionicons name="close-circle" size={30} color="#fff" />
-            </TouchableOpacity>
-            {profileImage && (
-              <Image source={{ uri: profileImage }} style={styles.fullImage} />
-            )}
-            <TouchableOpacity
-              style={styles.changePhotoBtn}
-              onPress={() => {
-                setIsViewModalVisible(false);
-                pickImage();
-              }}
-            >
-              <Ionicons name="camera" size={20} color="#fff" />
-              <Text style={styles.changePhotoText}>Change Photo</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.viewCloseBtn}
+            onPress={() => setIsViewModalVisible(false)}
+          >
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          {profileImage && (
+            <Image source={{ uri: profileImage }} style={styles.fullImage} />
+          )}
+          <TouchableOpacity
+            style={styles.changePhotoBtn}
+            onPress={() => {
+              setIsViewModalVisible(false);
+              pickImage();
+            }}
+          >
+            <Ionicons name="camera-outline" size={18} color="#fff" />
+            <Text style={styles.changePhotoText}>Change Photo</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
 
+/* ================= STYLES ================= */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
-  scrollContent: { padding: 20, paddingBottom: 40 },
-  
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 30,
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
   },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#333' },
-  backBtn: { padding: 5 },
-  
-  // Avatar
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 5,
+  scrollContent: {
+    paddingBottom: 40,
+  },
+
+  /* ---------- HEADER GRADIENT ---------- */
+  headerGradient: {
+    paddingTop: 10,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingHorizontal: 20,
+  },
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 25,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  /* ---------- AVATAR ---------- */
+  avatarWrapper: {
+    alignItems: "center",
+    marginBottom: 16,
+    position: "relative",
+  },
+  avatarPressable: {
+    borderRadius: 70,
+    overflow: "hidden",
+    borderWidth: 3,
+    borderColor: "#333",
   },
   avatar: {
-    width: 120, height: 120, borderRadius: 60,
-    borderWidth: 3, borderColor: '#007bff'
+    width: 110,
+    height: 110,
+    borderRadius: 55,
   },
   avatarPlaceholder: {
-    width: 120, height: 120, borderRadius: 60,
-    backgroundColor: '#E3F2FD', // Light Blue
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 3, borderColor: '#007bff'
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#111",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  editIcon: {
-    position: 'absolute',
-    bottom: 0,
-    right: (Platform.OS === 'web') ? '40%' : '35%',
-    backgroundColor: '#007bff',
-    padding: 8,
-    borderRadius: 20,
+  cameraBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: Platform.OS === "web" ? width * 0.38 : width * 0.35,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: '#fff'
-  },
-  subtitleText: {
-    textAlign: 'center', 
-    color: '#888', 
-    fontSize: 12, 
-    marginBottom: 30
+    borderColor: "#000",
   },
 
-  // Form
-  formContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+  /* ---------- PROFILE INFO ---------- */
+  profileInfo: {
+    alignItems: "center",
+    marginBottom: 20,
   },
-  label: {
+  profileName: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  profileBio: {
     fontSize: 14,
-    color: '#666',
+    color: "#888",
+    textAlign: "center",
+  },
+  editProfileInfo: {
+    alignItems: "center",
+    marginBottom: 20,
+    width: "100%",
+  },
+  editNameInput: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderColor: "#333",
+    width: "80%",
+    marginBottom: 10,
+  },
+  editBioInput: {
+    fontSize: 14,
+    color: "#ccc",
+    textAlign: "center",
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 10,
+    width: "90%",
+    minHeight: 40,
+    backgroundColor: "#0a0a0a",
+  },
+
+  /* ---------- STATS ---------- */
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 20,
+  },
+  statItem: {
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "#111",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#222",
+    minWidth: 90,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#666",
+    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  /* ---------- SAVE BUTTON ---------- */
+  saveBtnWrapper: {
+    marginTop: 5,
     marginBottom: 5,
-    marginTop: 10,
-    fontWeight: '600'
+    width: "60%",
+    alignSelf: "center",
   },
-  input: {
-    backgroundColor: '#F5F7FA',
-    padding: 15,
-    borderRadius: 10,
-    fontSize: 16,
-    color: '#333',
-  },
-  
-  // Save Button
   saveBtn: {
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
+    padding: 14,
+    borderRadius: 30,
+    alignItems: "center",
   },
   saveBtnText: {
-    color: '#fff', fontWeight: 'bold', fontSize: 16
+    color: "#000",
+    fontWeight: "700",
+    fontSize: 15,
+    letterSpacing: 0.5,
   },
 
-  // --- MODAL STYLES (Exactly from DriverDashboard) ---
-  modalCenteredView: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-  },
-
-  confirmModalView: {
-    width: '85%',
-    backgroundColor: 'white',
-    borderRadius: 20,
+  /* ---------- EDIT SECTION ---------- */
+  editSection: {
     padding: 20,
-    alignItems: 'center',
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 15,
+    marginTop: 5,
+  },
+  fieldGroup: {
+    marginBottom: 16,
+  },
+  fieldIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  editField: {
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: "#fff",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#222",
+    marginVertical: 20,
+  },
+
+  /* ---------- QUICK ACTIONS ---------- */
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: "#1a1a1a",
+  },
+  actionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  actionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#111",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionText: {
+    fontSize: 15,
+    color: "#fff",
+    fontWeight: "500",
+  },
+
+  /* ---------- MENU SECTION (Normal Mode) ---------- */
+  menuSection: {
+    padding: 20,
+  },
+  menuRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderColor: "#1a1a1a",
+  },
+  menuLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  menuIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: "#111",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuTitle: {
+    fontSize: 15,
+    color: "#fff",
+    fontWeight: "500",
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+
+  /* ---------- VERSION ---------- */
+  versionText: {
+    textAlign: "center",
+    color: "#333",
+    fontSize: 12,
+    marginTop: 20,
+  },
+
+  /* ---------- MODALS ---------- */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  confirmModal: {
+    width: "85%",
+    backgroundColor: "#111",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#fff",
     marginBottom: 20,
-    color: '#333',
   },
   previewImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     marginBottom: 20,
+    borderWidth: 2,
+    borderColor: "#333",
   },
-  modalButtonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
+  modalBtnRow: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
   },
-  modalBtn: { paddingVertical: 12, paddingHorizontal: 30, borderRadius: 20 },
-  cancelBtn: { backgroundColor: '#f0f0f0' },
-  cancelBtnText: { color: '#666', fontWeight: 'bold' },
-  confirmBtn: { backgroundColor: '#007bff' }, // Blue Theme
-  confirmBtnText: { color: '#fff', fontWeight: 'bold' },
-
-  viewModalView: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+  modalCancel: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 30,
+    backgroundColor: "#222",
+    alignItems: "center",
+  },
+  modalCancelText: {
+    color: "#aaa",
+    fontWeight: "600",
+  },
+  modalConfirm: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 30,
+    backgroundColor: "#fff",
+    alignItems: "center",
+  },
+  modalConfirmText: {
+    color: "#000",
+    fontWeight: "700",
+  },
+  viewCloseBtn: {
+    position: "absolute",
+    top: 50,
+    right: 20,
   },
   fullImage: {
-    width: '90%',
-    height: '70%',
-    resizeMode: 'contain',
+    width: "88%",
+    height: "65%",
     borderRadius: 20,
+    resizeMode: "contain",
   },
-  closeBtn: { position: 'absolute', top: 50, right: 20 },
   changePhotoBtn: {
-    flexDirection: 'row',
-    backgroundColor: '#007bff', // Blue Theme
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 20,
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 30,
     marginTop: 30,
-    alignItems: 'center',
+    alignItems: "center",
+    gap: 8,
   },
-  changePhotoText: { color: '#fff', fontWeight: 'bold', marginLeft: 10 },
+  changePhotoText: {
+    color: "#000",
+    fontWeight: "700",
+    fontSize: 14,
+  },
 });
