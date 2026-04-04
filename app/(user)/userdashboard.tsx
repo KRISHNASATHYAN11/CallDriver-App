@@ -463,10 +463,10 @@ export default function UserDashboard() {
       {/* TAP INSTRUCTION */}
       {!selectedPin && !isSearching && (
         <View style={styles.tapInstructionContainer} pointerEvents="none">
-          <View style={styles.tapInstructionBox}>
+          {/* <View style={styles.tapInstructionBox}>
             <Text style={styles.tapInstructionIcon}>👆</Text>
             <Text style={styles.tapInstructionText}>Tap to select pickup</Text>
-          </View>
+          </View> */}
         </View>
       )}
 
@@ -573,7 +573,7 @@ export default function UserDashboard() {
 
           <Text style={styles.sectionLabel}>Vehicle Number</Text>
           <TextInput
-            placeholder="KL-01-XXXX"
+            placeholder="KL-XX-XX-XXXX"
             value={vehicleNumber}
             onChangeText={setVehicleNumber}
             style={styles.input}

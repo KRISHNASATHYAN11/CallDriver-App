@@ -21,6 +21,7 @@ import * as Animatable from "react-native-animatable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import * as ImagePicker from "expo-image-picker";
+import { sendUserOtp, verifyUserOtp } from "../../src/api/authApi";
 
 const { width, height } = Dimensions.get("window");
 
@@ -34,7 +35,7 @@ export default function LoginScreen() {
   >("phone");
 
   const [phoneNumber, setPhoneNumber] = useState<string>("");
-  const [otp, setOtp] = useState<string[]>(["", "", "", ""]);
+  const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
 
   // New User Fields
@@ -108,7 +109,7 @@ export default function LoginScreen() {
 
   const resetForms = () => {
     setStage("phone");
-    setOtp(["", "", "", ""]);
+    setOtp(["", "", "", "", "", ""]);
     setName("");
     setGender("");
     setLicenseNumber("");
@@ -129,52 +130,100 @@ export default function LoginScreen() {
     setLoading(true);
 
     // PHONE STAGE -> Send OTP
+
     if (stage === "phone") {
-      setTimeout(() => {
+      try {
+        const res = await sendUserOtp(phoneNumber);
+
         setLoading(false);
+
+        if (res.message === "OTP sent successfully") {
+          Toast.show({
+            type: "success",
+            text1: "OTP Sent",
+            text2: `Code sent to +91${phoneNumber}`,
+          });
+
+          setStage("otp");
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Failed",
+            text2: "Something went wrong",
+          });
+        }
+      } catch (err: any) {
+        setLoading(false);
+
         Toast.show({
-          type: "success",
-          text1: "OTP Sent",
-          text2: `Code sent to +91${phoneNumber}`,
+          type: "error",
+          text1: "Error",
+          text2: "Server error",
         });
-        setStage("otp");
-      }, 1500);
+      }
     }
     // OTP STAGE -> Verify & Redirect based on logic
     else if (stage === "otp") {
       const otpCode = otp.join("");
-      if (otpCode.length < 4) {
+
+      if (otpCode.length !== 6) {
         setLoading(false);
         Toast.show({
           type: "error",
           text1: "Invalid OTP",
-          text2: "Enter complete code.",
+          text2: "Enter complete 6-digit code.",
         });
         return;
       }
 
-      // MOCK API CALL TO CHECK IF USER EXISTS
-      setTimeout(() => {
+      try {
+        console.log("VERIFY:", phoneNumber, otpCode);
+        const res = await verifyUserOtp(phoneNumber, otpCode);
+
         setLoading(false);
 
-        // DEMO LOGIC: If phone ends with '123' treat as Existing User, else New
-        const isExisting = phoneNumber.endsWith("123");
+        console.log("VERIFY RESPONSE:", res);
 
-        if (userType === "user") {
-          if (isExisting) {
-            router.replace("/(user)/userdashboard");
+        if (res.token) {
+          Toast.show({
+            type: "success",
+            text1: "OTP Verified",
+            text2: `Welcome +91${phoneNumber}`,
+          });
+
+          // ✅ If backend sends new user flag
+          if (res.isNewUser) {
+            if (userType === "user") {
+              setStage("newUser");
+            } else {
+              setStage("newDriver");
+            }
           } else {
-            setStage("newUser"); // Go to registration form
+            // ✅ Existing user → go dashboard
+            if (userType === "user") {
+              router.replace("/(user)/userdashboard");
+            } else {
+              router.replace("/(driver)/driverdashboard");
+            }
           }
         } else {
-          // Driver Flow
-          if (isExisting) {
-            setStage("existingDriver"); // Only needs Live Photo
-          } else {
-            setStage("newDriver"); // Needs full details
-          }
+          Toast.show({
+            type: "error",
+            text1: "Invalid OTP",
+            text2: "Please try again",
+          });
         }
-      }, 1500);
+      } catch (err: any) {
+        setLoading(false);
+
+        console.log("VERIFY ERROR:", err?.response?.data);
+
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: err?.response?.data?.message || "Verification failed",
+        });
+      }
     }
   };
 
@@ -234,7 +283,7 @@ export default function LoginScreen() {
     let newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
-    if (text && index < 3) otpInputs.current[index + 1]?.focus();
+    if (text && index < 5) otpInputs.current[index + 1]?.focus();
     if (!text && index > 0) otpInputs.current[index - 1]?.focus();
   };
 
@@ -451,10 +500,10 @@ export default function LoginScreen() {
                 </Text>
 
                 <View style={styles.otpContainer}>
-                  {[0, 1, 2, 3].map((_, index) => (
+                  {[0, 1, 2, 3, 4, 5].map((_, index) => (
                     <TextInput
                       key={index}
-                      ref={(ref: TextInput | null) => {
+                      ref={(ref) => {
                         otpInputs.current[index] = ref;
                       }}
                       style={styles.otpInput}
@@ -634,7 +683,7 @@ export default function LoginScreen() {
                 </Text>
 
                 {/* Removed Nested ScrollView - content flows naturally now */}
-                
+
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="person-outline"
@@ -699,11 +748,7 @@ export default function LoginScreen() {
                     />
                   ) : (
                     <View style={styles.placeholderDoc}>
-                      <Ionicons
-                        name="camera-outline"
-                        size={30}
-                        color="#555"
-                      />
+                      <Ionicons name="camera-outline" size={30} color="#555" />
                       <Text style={{ color: "#555" }}>Take Selfie</Text>
                     </View>
                   )}
@@ -842,14 +887,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginVertical: 20,
   },
+
   otpInput: {
-    width: 60,
-    height: 65,
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: "#333",
+    width: 50,
+    height: 60,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#444",
     textAlign: "center",
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#fff",
     backgroundColor: "#1a1a1a",
