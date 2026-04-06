@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from "react";
+import * as Location from "expo-location";
 import {
   View,
   Text,
@@ -317,6 +318,58 @@ export default function UserDashboard() {
     }
   };
 
+  const handleGetCurrentLocation = async () => {
+    try {
+      // Ask permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        Toast.show({
+          type: "error",
+          text1: "Permission denied",
+          text2: "Enable location access",
+        });
+        return;
+      }
+
+      // Get location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const { latitude, longitude } = location.coords;
+
+      const newRegion: Region = {
+        latitude,
+        longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+
+      // Update map + pin
+      setCoords(newRegion);
+      setSelectedPin({ latitude, longitude });
+      setMapMode("idle");
+
+      mapRef.current?.animateToRegion(newRegion, 1000);
+
+      // Get address
+      fetchAddressFromCoords(latitude, longitude);
+
+      Toast.show({
+        type: "success",
+        text1: "Location detected",
+        position: "bottom",
+      });
+    } catch (err) {
+      console.log(err);
+      Toast.show({
+        type: "error",
+        text1: "Location error",
+      });
+    }
+  };
+
   const handleMapPress = async (event: MapPressEvent) => {
     if (isSearching) {
       setIsSearching(false);
@@ -460,6 +513,13 @@ export default function UserDashboard() {
         </MapView>
       )}
 
+      <TouchableOpacity
+        style={styles.locationButton}
+        onPress={handleGetCurrentLocation}
+      >
+        <Text style={styles.locationIcon}>📍</Text>
+      </TouchableOpacity>
+
       {/* TAP INSTRUCTION */}
       {!selectedPin && !isSearching && (
         <View style={styles.tapInstructionContainer} pointerEvents="none">
@@ -504,24 +564,26 @@ export default function UserDashboard() {
       <View style={styles.panel}>
         <View style={styles.panelHandle} />
 
+        {/* 🔥 MOVE THIS OUTSIDE */}
+        <LocationSearch
+          mapRef={mapRef}
+          inputRef={inputRef}
+          setCoords={setCoords}
+          setPickup={setPickup}
+          isSearching={isSearching}
+          setIsSearching={setIsSearching}
+          setSelectedPin={setSelectedPin}
+          setMapMode={setMapMode}
+          pickup={pickup}
+        />
+
+        {/* 🔥 Scroll only static content */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           bounces={false}
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.panelTitle}>Book your driver</Text>
-
-          <LocationSearch
-            mapRef={mapRef}
-            inputRef={inputRef}
-            setCoords={setCoords}
-            setPickup={setPickup}
-            isSearching={isSearching}
-            setIsSearching={setIsSearching}
-            setSelectedPin={setSelectedPin}
-            setMapMode={setMapMode}
-            pickup={pickup}
-          />
 
           {loadingAddress && (
             <View style={styles.loadingContainer}>
@@ -547,7 +609,7 @@ export default function UserDashboard() {
             <Text style={styles.scheduleChevron}>›</Text>
           </TouchableOpacity>
 
-          {/* VEHICLE TYPE — ONLY NAME */}
+          {/* VEHICLE TYPE */}
           <Text style={styles.sectionLabel}>Choose Service</Text>
           <View style={styles.vehicleChipsRow}>
             {["Mini", "Sedan", "SUV", "Luxury"].map((name) => (
@@ -895,6 +957,29 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginTop: -2,
   },
+
+  locationButton: {
+    position: "absolute",
+    bottom: "48%",
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+    zIndex: 20,
+  },
+
+  locationIcon: {
+    fontSize: 22,
+    color: "#000",
+  },  
 
   // Bottom Panel
   panel: {

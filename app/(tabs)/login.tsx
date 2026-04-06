@@ -2,6 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
+import api from "../../src/api/index";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Dimensions,
@@ -21,7 +23,14 @@ import * as Animatable from "react-native-animatable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import * as ImagePicker from "expo-image-picker";
-import { sendUserOtp, verifyUserOtp } from "../../src/api/authApi";
+import {
+  sendDriverOtp,
+  sendUserOtp,
+  updateDriver,
+  updateUser,
+  verifyDriverOtp,
+  verifyUserOtp,
+} from "../../src/api/authApi";
 
 const { width, height } = Dimensions.get("window");
 
@@ -41,6 +50,10 @@ export default function LoginScreen() {
   // New User Fields
   const [name, setName] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "other" | "">("");
+  const [age, setAge] = useState("");
+  const [driverGender, setDriverGender] = useState<
+    "male" | "female" | "other" | ""
+  >("");
 
   // Driver Fields
   const [licenseNumber, setLicenseNumber] = useState("");
@@ -51,6 +64,8 @@ export default function LoginScreen() {
   const [isModalVisible, setModalVisible] = useState(false);
 
   const otpInputs = useRef<(TextInput | null)[]>([]);
+  const [isExistingUser, setIsExistingUser] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // --- Image Picker Logic ---
 
@@ -133,11 +148,15 @@ export default function LoginScreen() {
 
     if (stage === "phone") {
       try {
-        const res = await sendUserOtp(phoneNumber);
+        const res =
+          userType === "user"
+            ? await sendUserOtp(phoneNumber)
+            : await sendDriverOtp(phoneNumber);
 
         setLoading(false);
 
         if (res.message === "OTP sent successfully") {
+          setIsExistingUser(res.existingUser);
           Toast.show({
             type: "success",
             text1: "OTP Sent",
@@ -171,52 +190,54 @@ export default function LoginScreen() {
         Toast.show({
           type: "error",
           text1: "Invalid OTP",
-          text2: "Enter complete 6-digit code.",
+          text2: "Enter 6-digit code",
         });
         return;
       }
 
       try {
-        console.log("VERIFY:", phoneNumber, otpCode);
-        const res = await verifyUserOtp(phoneNumber, otpCode);
+        const res =
+          userType === "user"
+            ? await verifyUserOtp(phoneNumber, otpCode)
+            : await verifyDriverOtp(phoneNumber, otpCode);
 
         setLoading(false);
 
-        console.log("VERIFY RESPONSE:", res);
-
         if (res.token) {
+          setUserId(res.user.id);
+          await AsyncStorage.setItem("token", res.token);
+          api.defaults.headers.common["Authorization"] = `Bearer ${res.token}`;
           Toast.show({
             type: "success",
             text1: "OTP Verified",
             text2: `Welcome +91${phoneNumber}`,
           });
 
-          // ✅ If backend sends new user flag
-          if (res.isNewUser) {
-            if (userType === "user") {
-              setStage("newUser");
-            } else {
-              setStage("newDriver");
-            }
-          } else {
-            // ✅ Existing user → go dashboard
+          // ✅ USE BACKEND RESPONSE (IMPORTANT)
+          if (isExistingUser) {
+            // Existing → go dashboard
             if (userType === "user") {
               router.replace("/(user)/userdashboard");
             } else {
               router.replace("/(driver)/driverdashboard");
+            }
+          } else {
+            // New user → ask details
+            if (userType === "user") {
+              setStage("newUser");
+            } else {
+              setStage("newDriver");
             }
           }
         } else {
           Toast.show({
             type: "error",
             text1: "Invalid OTP",
-            text2: "Please try again",
+            text2: "Try again",
           });
         }
       } catch (err: any) {
         setLoading(false);
-
-        console.log("VERIFY ERROR:", err?.response?.data);
 
         Toast.show({
           type: "error",
@@ -228,55 +249,92 @@ export default function LoginScreen() {
   };
 
   // FINAL SUBMISSION FOR NEW/EXISTING PROFILES
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
+    if (!userId) return;
+
     setLoading(true);
 
-    // Validations
-    if (stage === "newUser") {
-      if (!name || !gender) {
-        Toast.show({
-          type: "error",
-          text1: "Incomplete",
-          text2: "Name & Gender required.",
-        });
-        setLoading(false);
-        return;
-      }
-    }
+    try {
+      // ================= USER =================
+      if (stage === "newUser") {
+        if (!name || !gender) {
+          Toast.show({
+            type: "error",
+            text1: "Incomplete",
+            text2: "Name & Gender required.",
+          });
+          setLoading(false);
+          return;
+        }
 
-    if (stage === "newDriver") {
-      if (!name || !licenseNumber || !licensePhoto || !livePhoto) {
-        Toast.show({
-          type: "error",
-          text1: "Incomplete",
-          text2: "All fields & photos required.",
-        });
-        setLoading(false);
-        return;
-      }
-    }
+        await updateUser(userId, name, gender);
 
-    if (stage === "existingDriver") {
-      if (!livePhoto) {
         Toast.show({
-          type: "error",
-          text1: "Verification Failed",
-          text2: "Live photo required.",
+          type: "success",
+          text1: "Profile Updated",
         });
-        setLoading(false);
-        return;
-      }
-    }
 
-    // API CALL HERE
-    setTimeout(() => {
-      setLoading(false);
-      if (userType === "user") {
         router.replace("/(user)/userdashboard");
-      } else {
+      }
+
+      // ================= DRIVER =================
+      else if (stage === "newDriver") {
+        if (
+          !name ||
+          // !driverGender ||
+          // !age ||
+          !licenseNumber ||
+          !licensePhoto ||
+          !livePhoto
+        ) {
+          Toast.show({
+            type: "error",
+            text1: "Incomplete",
+            text2: "Fill all driver details",
+          });
+          setLoading(false);
+          return;
+        }
+
+        const formData = new FormData();
+
+        formData.append("name", name);
+        formData.append("gender", driverGender);
+        formData.append("age", age);
+        formData.append("licenseNumber", licenseNumber);
+
+        formData.append("licenseImage", {
+          uri: licensePhoto,
+          name: "license.jpg",
+          type: "image/jpeg",
+        } as any);
+
+        formData.append("livePhoto", {
+          uri: livePhoto,
+          name: "live.jpg",
+          type: "image/jpeg",
+        } as any);
+
+        await updateDriver(userId, formData);
+
+        Toast.show({
+          type: "success",
+          text1: "Driver Registered",
+        });
+
         router.replace("/(driver)/driverdashboard");
       }
-    }, 2000);
+
+      setLoading(false);
+    } catch (err: any) {
+      setLoading(false);
+
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: err?.response?.data?.message || "Something went wrong",
+      });
+    }
   };
 
   const handleOtpChange = (text: string, index: number) => {
