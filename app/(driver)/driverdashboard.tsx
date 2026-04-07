@@ -1,3 +1,4 @@
+
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
@@ -5,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -33,8 +35,6 @@ const { width, height } = Dimensions.get("window");
 const SOCKET_URL =
   process.env.EXPO_PUBLIC_API_URL_DEV || "http://192.168.29.15:3000";
 
-// ⚠️ Replace with real driver ID from auth context / AsyncStorage
-const DRIVER_ID = "driver_123";
 
 const darkMapStyle = [
   { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
@@ -50,21 +50,13 @@ const darkMapStyle = [
     elementType: "labels.text.fill",
     stylers: [{ color: "#7f8c8d" }],
   },
-  {
-    featureType: "road",
-    elementType: "geometry.fill",
-    stylers: [{ color: "#2c3e50" }],
-  },
+  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2c3e50" }] },
   {
     featureType: "road.highway",
     elementType: "geometry",
     stylers: [{ color: "#34495e" }],
   },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#1a252f" }],
-  },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#1a252f" }] },
 ];
 
 export default function DriverDashboard() {
@@ -73,27 +65,39 @@ export default function DriverDashboard() {
   // =========================================================================
   // STATE
   // =========================================================================
+
+  const [driverId, setDriverId] = useState<string | null>(null);
+  const driverIdRef = useRef<string | null>(null); // Ref for use in callbacks
+  const [isLoadingDriver, setIsLoadingDriver] = useState(true);
+
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [isVerified, setIsVerified] = useState(false); // Selfie verified this session
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRideActive, setIsRideActive] = useState(false);
+
+  //  Real driver data (loaded from API)
+  const [driverName, setDriverName] = useState<string>("Driver");
+  const [driverPhone, setDriverPhone] = useState<string>("");
+  const [driverRating, setDriverRating] = useState<string>("--");
+  const [totalRides, setTotalRides] = useState<number>(0);
+  const [todayEarnings, setTodayEarnings] = useState<string>("$ 0.00");
+  const [todayRides, setTodayRides] = useState<number>(0);
+  const [onlineHours, setOnlineHours] = useState<string>("0 Hrs");
+
   const [driverLocation, setDriverLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
-  const locationSubscription = useRef<Location.LocationSubscription | null>(
-    null,
-  );
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
 
-  const [rideStatus, setRideStatus] = useState<
-    "en_route" | "arrived" | "ongoing"
-  >("en_route");
+  const [rideStatus, setRideStatus] = useState<"en_route" | "arrived" | "ongoing">(
+    "en_route"
+  );
   const [otp, setOtp] = useState<string[]>(["", "", "", ""]);
   const otpInputs = useRef<(TextInput | null)[]>([]);
 
-  // Profile image modals
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
@@ -104,7 +108,6 @@ export default function DriverDashboard() {
   const [timeLeft, setTimeLeft] = useState(30);
   const [showTuningEffect, setShowTuningEffect] = useState(false);
 
-  // Selfie verification modal
   const [showSelfieVerification, setShowSelfieVerification] = useState(false);
 
   // Refs
@@ -113,9 +116,7 @@ export default function DriverDashboard() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeLeftRef = useRef<number>(30);
   const isMountedRef = useRef<boolean>(true);
-  const debounceLocationRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const debounceLocationRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Animations
   const modalScale = useRef(new Animated.Value(0)).current;
@@ -133,39 +134,69 @@ export default function DriverDashboard() {
     return "Good Evening,";
   };
 
-  // =========================================================================
-  // 1. FETCH DRIVER PROFILE ON MOUNT (optional — to pre-fill name, image, etc.)
-  // =========================================================================
+ 
   useEffect(() => {
-    fetchDriverProfile();
+    const loadDriverId = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("driver");
+        if (stored) {
+          const driver = JSON.parse(stored);
+          const id = driver._id;
+          driverIdRef.current = id;  
+          setDriverId(id);           
+          console.log("✅ Loaded driverId from AsyncStorage:", id);
+        } else {
+          console.log("⚠️ No driver found in AsyncStorage");
+        }
+      } catch (e) {
+        console.log("❌ Failed to load driver from storage:", e);
+      }
+      setIsLoadingDriver(false); // ✅ Hide loading screen
+    };
+
+    loadDriverId();
   }, []);
 
-  const fetchDriverProfile = async () => {
-    try {
-      const res = await driverApi.getDriver(DRIVER_ID);
-      if (res.success && res.data) {
-        if (res.data.imgUrl) setProfileImage(res.data.imgUrl);
-        // If driver was online when app closed, ask for re-verification
-        if (res.data.isOnline && !res.data.isOnTrip) {
-          // Optionally go straight to online if verified recently
-        }
-      }
-    } catch (e: any) {
-      console.log("Failed to fetch profile:", e.message);
-    }
-  };
+ 
+  useEffect(() => {
+    if (!driverId) return; 
 
-  // =========================================================================
-  // 2. SOCKET CONNECTION (LISTEN ONLY — all actions via REST API)
-  // =========================================================================
-  const initializeSocket = useCallback(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await driverApi.getDriver(driverId);
+        if (res.success && res.data) {
+          const d = res.data;
+          if (d.name) setDriverName(d.name);
+          if (d.phone) setDriverPhone(d.phone);
+          if (d.rating) setDriverRating(String(d.rating));
+          if (d.totalRides) setTotalRides(d.totalRides);
+          if (d.imgUrl) setProfileImage(d.imgUrl);
+          if (d.todayEarnings != null) setTodayEarnings(`$ ${d.todayEarnings}`);
+          if (d.todayRides != null) setTodayRides(d.todayRides);
+          if (d.onlineHours != null) setOnlineHours(`${d.onlineHours} Hrs`);
+          console.log("✅ Profile loaded:", d.name);
+        }
+      } catch (e: any) {
+        console.log("❌ Profile fetch failed:", e.message);
+      }
+    };
+
+    fetchProfile();
+  }, [driverId]);
+
+ 
+  useEffect(() => {
+    if (!driverId) return; 
+
+    isMountedRef.current = true;
+
     if (socketRef.current) {
       socketRef.current.removeAllListeners();
       socketRef.current.disconnect();
     }
 
     const socket = io(SOCKET_URL, {
-      auth: { userId: DRIVER_ID, role: "driver" },
+      auth: { userId: driverId, role: "driver" },
       transports: ["websocket"],
       reconnection: true,
       reconnectionAttempts: 10,
@@ -176,17 +207,17 @@ export default function DriverDashboard() {
 
     socket.on("connect", () => {
       console.log("✅ Socket connected:", socket.id);
-      socket.emit("join-driver", DRIVER_ID);
+      socket.emit("join-driver", driverId);
     });
 
     socket.on("disconnect", (reason) =>
-      console.log("❌ Socket disconnected:", reason),
+      console.log("❌ Socket disconnected:", reason)
     );
     socket.on("connect_error", (error) =>
-      console.log("🔴 Socket error:", error.message),
+      console.log("🔴 Socket error:", error.message)
     );
 
-    // New booking notification (from server when customer books)
+    // New booking notification
     socket.on("new-booking", (data) => {
       if (!isMountedRef.current || isRideActive) return;
       handleIncomingRide(data);
@@ -209,7 +240,6 @@ export default function DriverDashboard() {
       }
     });
 
-    // Booking accepted by another driver (race condition)
     socket.on("booking-taken", (data) => {
       const takenId =
         data.bookingId || data.booking?._id || data.booking?.bookingId;
@@ -222,21 +252,15 @@ export default function DriverDashboard() {
         setBookingData(null);
         modalScale.setValue(0);
         modalOpacity.setValue(0);
-        Alert.alert(
-          "Ride Taken",
-          "This ride has been accepted by another driver.",
-        );
+        Alert.alert("Ride Taken", "This ride has been accepted by another driver.");
       }
     });
 
     socket.on("error", (data) => {
       console.log("Socket error:", data.message);
     });
-  }, [bookingData?.id, bookingData?.bookingId, isRideActive, hasRequest]);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    initializeSocket();
+    // Cleanup on unmount
     return () => {
       isMountedRef.current = false;
       stopAlerts();
@@ -249,7 +273,7 @@ export default function DriverDashboard() {
         socketRef.current.disconnect();
       }
     };
-  }, []);
+  }, [driverId]); 
 
   // =========================================================================
   // ANIMATIONS
@@ -268,7 +292,7 @@ export default function DriverDashboard() {
             duration: 1500,
             useNativeDriver: true,
           }),
-        ]),
+        ])
       ).start();
     } else {
       onlinePulse.stopAnimation();
@@ -306,7 +330,7 @@ export default function DriverDashboard() {
             }),
           ]),
           Animated.delay(500),
-        ]),
+        ])
       );
 
       edges = Animated.loop(
@@ -321,7 +345,7 @@ export default function DriverDashboard() {
             duration: 800,
             useNativeDriver: true,
           }),
-        ]),
+        ])
       );
 
       rings.start();
@@ -377,7 +401,7 @@ export default function DriverDashboard() {
       }
       const { sound } = await Audio.Sound.createAsync(
         require("../../assets/images/mixkit-happy-bells-notification-937.mp3"),
-        { shouldPlay: true, isLooping: true },
+        { shouldPlay: true, isLooping: true }
       );
       soundObject.current = sound;
       await sound.playAsync();
@@ -425,15 +449,11 @@ export default function DriverDashboard() {
         { text: "Cancel", style: "cancel" },
       ]);
     } else {
-      Alert.alert(
-        "Set Profile Picture",
-        "Choose how you want to add your photo",
-        [
-          { text: "Take Photo", onPress: () => pickImage("camera") },
-          { text: "Choose from Gallery", onPress: () => pickImage("gallery") },
-          { text: "Cancel", style: "cancel" },
-        ],
-      );
+      Alert.alert("Set Profile Picture", "Choose how you want to add your photo", [
+        { text: "Take Photo", onPress: () => pickImage("camera") },
+        { text: "Choose from Gallery", onPress: () => pickImage("gallery") },
+        { text: "Cancel", style: "cancel" },
+      ]);
     }
   };
 
@@ -465,6 +485,7 @@ export default function DriverDashboard() {
   };
 
   const confirmProfilePic = async () => {
+    if (!driverIdRef.current) return; // Null guard
     setIsConfirmModalVisible(false);
     const imageUri = pendingImage;
     setProfileImage(imageUri);
@@ -472,129 +493,96 @@ export default function DriverDashboard() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
-      await driverApi.updateDriver(DRIVER_ID, { imgUrl: imageUri });
-      console.log("✅ Profile image saved to backend");
+      await driverApi.updateDriver(driverIdRef.current, { imgUrl: imageUri });
+      console.log("Profile image saved to backend");
     } catch (e: any) {
       console.log("❌ Failed to save image:", e.message);
       Alert.alert("Error", "Failed to save image to server.");
     }
   };
 
-  // =========================================================================
-  // ★★★ GO ONLINE / OFFLINE — WITH SELFIE VERIFICATION ★★★
-  // =========================================================================
 
-  /**
-   * Flow when driver taps "GO ONLINE":
-   *  1. If NOT verified this session → show selfie camera
-   *  2. After verification succeeds → actually go online via REST API
-   *  3. If already verified this session → go online directly (skip selfie)
-   */
   const handleGoOnlineTap = () => {
     if (isToggling) return;
 
     if (!isOnline) {
-      // Going ONLINE — check if selfie verification is needed
       if (!isVerified) {
-        // Show selfie verification camera
         setShowSelfieVerification(true);
       } else {
-        // Already verified this session — go online directly
         goOnline();
       }
     } else {
-      // Going OFFLINE
       goOffline();
     }
   };
 
-  /** Called after selfie verification succeeds */
   const onSelfieVerified = () => {
     setShowSelfieVerification(false);
     setIsVerified(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Now actually go online
     goOnline();
   };
 
-  /** Called if driver cancels selfie verification */
   const onSelfieCancelled = () => {
     setShowSelfieVerification(false);
   };
 
-  /**
-   * Actually go online via REST API + update location + start socket
-   */
   const goOnline = async () => {
+    if (!driverIdRef.current) {
+      Alert.alert("Error", "Driver not found. Please log in again.");
+      return;
+    }
+
     setIsToggling(true);
     try {
-      // 1. Request location permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Location Required",
-          "Please enable location services to go online.",
-        );
+        Alert.alert("Location Required", "Please enable location services to go online.");
         setIsToggling(false);
         return;
       }
 
-      // 2. Get current location (fast, low accuracy for initial fix)
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Low,
       });
       const { latitude, longitude } = loc.coords;
 
-      // 3. ✅ REST API: Toggle online status
-      await driverApi.toggleOnlineStatus(DRIVER_ID, true);
+      await driverApi.toggleOnlineStatus(driverIdRef.current, true);
 
-      // 4. ✅ REST API: Update location in DB
-      await driverApi.updateLocation(DRIVER_ID, longitude, latitude);
+      await driverApi.updateLocation(driverIdRef.current, longitude, latitude);
 
-      // 5. Update local state
       setDriverLocation({ latitude, longitude });
       setIsOnline(true);
 
-      // 6. Socket: notify server (for room joining / push notification routing)
       socketRef.current?.emit("driver-online", {
-        driverId: DRIVER_ID,
+        driverId: driverIdRef.current,
         location: { lat: latitude, lng: longitude },
       });
 
-      console.log("✅ Went online via REST API (verified)");
+      console.log("Went online via REST API (selfie verified)");
     } catch (e: any) {
-      Alert.alert(
-        "Error",
-        e.message || "Failed to go online. Please try again.",
-      );
+      Alert.alert("Error", e.message || "Failed to go online. Please try again.");
     } finally {
       setIsToggling(false);
     }
   };
 
-  /**
-   * Go offline via REST API
-   */
   const goOffline = async () => {
+    if (!driverIdRef.current) return; 
+
     setIsToggling(true);
     try {
-      // 1. ✅ REST API: Set offline
-      await driverApi.toggleOnlineStatus(DRIVER_ID, false);
-
-      // 2. Update local state
+      await driverApi.toggleOnlineStatus(driverIdRef.current, false);
       setIsOnline(false);
-      setIsVerified(false); // Reset — require re-verification next time
+      setIsVerified(false);
 
-      // 3. Stop location tracking
       if (locationSubscription.current) {
         locationSubscription.current.remove();
         locationSubscription.current = null;
       }
 
-      // 4. Socket: notify
-      socketRef.current?.emit("driver-offline", { driverId: DRIVER_ID });
-
-      console.log("✅ Went offline via REST API");
+      socketRef.current?.emit("driver-offline", { driverId: driverIdRef.current });
+      console.log("Went offline via REST API");
     } catch (e: any) {
       Alert.alert("Error", "Failed to go offline.");
     } finally {
@@ -602,80 +590,69 @@ export default function DriverDashboard() {
     }
   };
 
-  // =========================================================================
-  // ACCEPT RIDE (REST API)
-  // =========================================================================
   const acceptRide = async () => {
+    if (!driverIdRef.current) return; 
+
     stopAlerts();
     setIsLoading(true);
 
     try {
-      // 1. Get current location
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
       const { latitude, longitude } = loc.coords;
-
       const bookingId = bookingData?.id || bookingData?._id;
 
-      // 2. ✅ REST API: Accept booking
-      const response = await bookingApi.acceptBooking(bookingId, DRIVER_ID, {
+      if (!bookingId || bookingId.startsWith("sim_")) {
+        console.log("❌ Invalid booking ID:", bookingId);
+        Alert.alert("Error", "Invalid booking data");
+        return;
+      }
+
+      // REST API: Accept booking
+      const response = await bookingApi.acceptBooking(bookingId, driverIdRef.current, {
         lat: latitude,
         lng: longitude,
       });
 
-      // 3. Update local state
       setDriverLocation({ latitude, longitude });
       setHasRequest(false);
       setIsRideActive(true);
       setRideStatus("en_route");
       setOtp(["", "", "", ""]);
 
-      // Merge server response
       if (response?.data?.booking) {
         setBookingData((prev: any) => ({ ...prev, ...response.data.booking }));
       } else if (response?.data) {
         setBookingData((prev: any) => ({ ...prev, ...response.data }));
       }
 
-      // 4. Socket: Join booking room for real-time updates
       socketRef.current?.emit("join-booking", bookingId);
-
-      // 5. Start live tracking
       startLiveTracking(bookingId);
 
-      console.log("✅ Accepted ride via REST API");
+      console.log("Accepted ride via REST API");
     } catch (e: any) {
       console.log("❌ Accept failed:", e.response?.data || e.message);
-      Alert.alert(
-        "Error",
-        e.message || "Failed to accept ride. It may have been taken.",
-      );
+      Alert.alert("Error", e.message || "Failed to accept ride. It may have been taken.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // =========================================================================
-  // DECLINE RIDE (REST API)
-  // =========================================================================
   const declineRide = async () => {
     stopAlerts();
     setHasRequest(false);
 
     try {
       const bookingId = bookingData?.id || bookingData?._id;
-
-      // ✅ REST API: Reject booking
-      await bookingApi.rejectBooking(bookingId, DRIVER_ID);
-
-      // Socket: Notify (optional — API already handles it)
-      socketRef.current?.emit("decline-ride", {
-        driverId: DRIVER_ID,
-        bookingId,
-      });
-
-      console.log("✅ Declined ride via REST API");
+      if (driverIdRef.current && bookingId) {
+        await bookingApi.rejectBooking(bookingId, driverIdRef.current);
+        socketRef.current?.emit("decline-ride", {
+          driverId: driverIdRef.current,
+          bookingId,
+        });
+      }
+      console.log(" Declined ride via REST API");
     } catch (e: any) {
       console.log("❌ Decline failed:", e.message);
     } finally {
@@ -685,18 +662,15 @@ export default function DriverDashboard() {
     }
   };
 
-  // =========================================================================
-  // LIVE LOCATION TRACKING (REST API + Socket)
-  // =========================================================================
   const debouncedApiLocationUpdate = (lng: number, lat: number) => {
     if (debounceLocationRef.current) clearTimeout(debounceLocationRef.current);
     debounceLocationRef.current = setTimeout(() => {
+      const id = driverIdRef.current;
+      if (!id) return; // Null guard
       driverApi
-        .updateLocation(DRIVER_ID, lng, lat)
-        .catch((e: any) =>
-          console.log("Location DB update failed:", e.message),
-        );
-    }, 10000); // Persist to DB every 10s
+        .updateLocation(id, lng, lat)
+        .catch((e: any) => console.log("Location DB update failed:", e.message));
+    }, 10000);
   };
 
   const startLiveTracking = async (bookingId: string) => {
@@ -706,97 +680,65 @@ export default function DriverDashboard() {
     }
 
     locationSubscription.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 2000,
-        distanceInterval: 10,
-      },
+      { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 10 },
       (loc) => {
         const { latitude, longitude } = loc.coords;
         setDriverLocation({ latitude, longitude });
 
-        // Socket: Real-time location to customer (instant, no DB)
         socketRef.current?.emit("driver-location", {
           bookingId,
-          driverId: DRIVER_ID,
+          driverId: driverIdRef.current,
           lat: latitude,
           lng: longitude,
           timestamp: Date.now(),
         });
 
-        // REST API: Persist to DB (debounced, every 10s)
         debouncedApiLocationUpdate(longitude, latitude);
-      },
+      }
     );
   };
 
-  // =========================================================================
-  // DRIVER ARRIVED (REST API)
-  // =========================================================================
   const handleArrived = async () => {
+    if (!driverIdRef.current) return; 
+
     try {
       const bookingId = bookingData?.id || bookingData?._id;
-
-      // ✅ REST API: Mark arrived
-      await bookingApi.markArrived(bookingId, DRIVER_ID);
-
-      // Update local state
+      await bookingApi.markArrived(bookingId, driverIdRef.current);
       setRideStatus("arrived");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // Socket: Notify customer
       socketRef.current?.emit("driver-arrived", {
         bookingId,
-        driverId: DRIVER_ID,
+        driverId: driverIdRef.current,
       });
-
-      console.log("✅ Marked arrived via REST API");
+      console.log(" Marked arrived via REST API");
     } catch (e: any) {
-      console.log("❌ Arrived error:", e.message);
       Alert.alert("Error", e.message || "Failed to update arrival status.");
     }
   };
 
-  // =========================================================================
-  // OTP CHANGE HANDLER
-  // =========================================================================
   const handleOtpChange = (text: string, index: number) => {
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
-
-    if (text && index < 3) {
-      otpInputs.current[index + 1]?.focus();
-    }
-    if (newOtp.join("").length === 4) {
-      Keyboard.dismiss();
-    }
+    if (text && index < 3) otpInputs.current[index + 1]?.focus();
+    if (newOtp.join("").length === 4) Keyboard.dismiss();
   };
 
-  // =========================================================================
-  // VERIFY OTP & START RIDE (REST API)
-  // =========================================================================
+  
   const verifyOtpAndStart = async () => {
     const enteredOtp = otp.join("");
     const bookingId = bookingData?.id || bookingData?._id;
 
     try {
       setIsLoading(true);
-
-      // ✅ REST API: Start trip (server verifies OTP)
       await bookingApi.startTrip(bookingId, enteredOtp);
-
-      // Update local state
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setRideStatus("ongoing");
-
-      // Socket: Notify customer (optional, API already handles)
       socketRef.current?.emit("start-ride", {
         bookingId,
-        driverId: DRIVER_ID,
+        driverId: driverIdRef.current,
         otp: enteredOtp,
       });
-
       console.log("✅ Started ride via REST API");
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -807,37 +749,26 @@ export default function DriverDashboard() {
       setIsLoading(false);
     }
   };
-
-  // =========================================================================
-  // END RIDE (REST API)
-  // =========================================================================
   const endRide = async () => {
     const bookingId = bookingData?.id || bookingData?._id;
 
     try {
       setIsLoading(true);
+      await bookingApi.endTrip(bookingId, driverIdRef.current!, Date.now());
 
-      // ✅ REST API: End trip
-      await bookingApi.endTrip(bookingId, DRIVER_ID, Date.now());
-
-      // Socket: Notify (optional)
       socketRef.current?.emit("complete-ride", {
         bookingId,
-        driverId: DRIVER_ID,
+        driverId: driverIdRef.current,
         endTime: Date.now(),
       });
-
       socketRef.current?.emit("leave-booking", bookingId);
 
-      // Cleanup
-      if (debounceLocationRef.current)
-        clearTimeout(debounceLocationRef.current);
+      if (debounceLocationRef.current) clearTimeout(debounceLocationRef.current);
       if (locationSubscription.current) {
         locationSubscription.current.remove();
         locationSubscription.current = null;
       }
 
-      // Reset state
       setIsRideActive(false);
       setBookingData(null);
       setDriverLocation(null);
@@ -853,25 +784,15 @@ export default function DriverDashboard() {
     }
   };
 
-  // =========================================================================
-  // SIMULATE RIDE (For Testing)
-  // =========================================================================
-  const simulateRide = () => {
-    const fakeData = {
-      id: "sim_" + Date.now(),
-      _id: "sim_" + Date.now(),
-      bookingId: "BK" + Math.random().toString(36).substr(2, 6).toUpperCase(),
-      userName: "Sarah Mathew",
-      pickup: "456 Kowdiar Ave",
-      dropoff: "Technopark",
-      fare: "₹245",
-      rating: "4.9",
-      otp: "1234",
-      pickupCoords: { latitude: 8.5241, longitude: 76.9366 },
-      dropCoords: { latitude: 8.5108, longitude: 76.965 },
-    };
-    handleIncomingRide(fakeData);
-  };
+  
+  if (isLoadingDriver) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#34d399" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   // =========================================================================
   // RENDER
@@ -881,12 +802,12 @@ export default function DriverDashboard() {
       {/* Selfie Verification Modal */}
       <SelfieVerification
         visible={showSelfieVerification}
-        driverId={DRIVER_ID}
-        onSuccess={onSelfieVerified} // ✅ FIXED
+        driverId={driverId || ""}
+        onSuccess={onSelfieVerified}
         onCancel={onSelfieCancelled}
       />
 
-      {/* Tuning Effect (ride request rings) */}
+      {/* Tuning Effect (ride request pulse rings) */}
       {showTuningEffect && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           {[ring1, ring2, ring3].map((anim, i) => (
@@ -908,108 +829,57 @@ export default function DriverDashboard() {
                   outputRange: [0.8, 0.3, 0],
                 }),
                 transform: [
-                  {
-                    scale: anim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 8],
-                    }),
-                  },
+                  { scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 8] }) },
                 ],
               }}
             />
           ))}
           <Animated.View style={[styles.edgeGlowTop, { opacity: edgeGlow }]}>
-            <LinearGradient
-              colors={["rgba(52, 211, 153, 0.3)", "transparent"]}
-              style={{ flex: 1 }}
-            />
+            <LinearGradient colors={["rgba(52, 211, 153, 0.3)", "transparent"]} style={{ flex: 1 }} />
           </Animated.View>
           <Animated.View style={[styles.edgeGlowBottom, { opacity: edgeGlow }]}>
-            <LinearGradient
-              colors={["transparent", "rgba(52, 211, 153, 0.3)"]}
-              style={{ flex: 1 }}
-            />
+            <LinearGradient colors={["transparent", "rgba(52, 211, 153, 0.3)"]} style={{ flex: 1 }} />
           </Animated.View>
         </View>
       )}
 
-      {/* ===== TOP BAR ===== */}
+      {/* TOP BAR */}
       <SafeAreaView style={styles.topBar} edges={["top"]}>
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => router.push("/(driver)/notifications")}
-        >
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/(driver)/notifications")}>
           <Ionicons name="notifications-outline" size={22} color="#fff" />
           <View style={styles.notifDot} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={handleGoOnlineTap}
-          disabled={isToggling}
-          style={styles.toggleWrapper}
-        >
-          <Animated.View
-            style={[styles.toggleGlow, { opacity: onlinePulse }]}
-          />
+        <TouchableOpacity activeOpacity={0.9} onPress={handleGoOnlineTap} disabled={isToggling} style={styles.toggleWrapper}>
+          <Animated.View style={[styles.toggleGlow, { opacity: onlinePulse }]} />
           <LinearGradient
-            colors={
-              isOnline
-                ? ["rgba(52,211,153,0.2)", "rgba(52,211,153,0.05)"]
-                : ["rgba(255,255,255,0.1)", "rgba(255,255,255,0.02)"]
-            }
+            colors={isOnline ? ["rgba(52,211,153,0.2)", "rgba(52,211,153,0.05)"] : ["rgba(255,255,255,0.1)", "rgba(255,255,255,0.02)"]}
             style={styles.toggleBtn}
           >
             {isToggling ? (
               <ActivityIndicator size="small" color="#34d399" />
             ) : (
-              <View
-                style={[
-                  styles.toggleDot,
-                  { backgroundColor: isOnline ? "#34d399" : "#666" },
-                ]}
-              />
+              <View style={[styles.toggleDot, { backgroundColor: isOnline ? "#34d399" : "#666" }]} />
             )}
-            <Text
-              style={[
-                styles.toggleText,
-                { color: isOnline ? "#34d399" : "#999" },
-              ]}
-            >
+            <Text style={[styles.toggleText, { color: isOnline ? "#34d399" : "#999" }]}>
               {isToggling ? "LOADING..." : isOnline ? "ONLINE" : "GO ONLINE"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => router.push("/(driver)/wallet")}
-        >
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/(driver)/wallet")}>
           <Ionicons name="wallet-outline" size={22} color="#fff" />
         </TouchableOpacity>
       </SafeAreaView>
 
-      {/* ===== MAP ===== */}
+      {/* MAP */}
       {(isOnline || isRideActive) && (
         <MapView
           style={styles.map}
           provider={PROVIDER_GOOGLE}
           customMapStyle={darkMapStyle}
-          initialRegion={{
-            latitude: 8.5241,
-            longitude: 76.9366,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
-          region={
-            driverLocation
-              ? {
-                  ...driverLocation,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }
-              : undefined
-          }
+          initialRegion={{ latitude: 8.5241, longitude: 76.9366, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
+          region={driverLocation ? { ...driverLocation, latitudeDelta: 0.01, longitudeDelta: 0.01 } : undefined}
         >
           {driverLocation && (
             <Marker coordinate={driverLocation} title="You">
@@ -1022,94 +892,56 @@ export default function DriverDashboard() {
           )}
           {isRideActive && bookingData?.pickupCoords && (
             <Marker coordinate={bookingData.pickupCoords} title="Pickup">
-              <View style={styles.pickupMarker}>
-                <View style={styles.pickupDot} />
-              </View>
+              <View style={styles.pickupMarker}><View style={styles.pickupDot} /></View>
             </Marker>
           )}
-          {isRideActive &&
-            rideStatus === "ongoing" &&
-            bookingData?.dropCoords && (
-              <Marker coordinate={bookingData.dropCoords} title="Drop">
-                <View style={styles.dropMarker}>
-                  <View style={styles.dropDot} />
-                </View>
-              </Marker>
-            )}
+          {isRideActive && rideStatus === "ongoing" && bookingData?.dropCoords && (
+            <Marker coordinate={bookingData.dropCoords} title="Drop">
+              <View style={styles.dropMarker}><View style={styles.dropDot} /></View>
+            </Marker>
+          )}
         </MapView>
       )}
 
-      {/* ===== ACTIVE RIDE UI ===== */}
+      {/* ACTIVE RIDE UI */}
       {isRideActive && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <TouchableOpacity style={styles.closeRideBtn} onPress={endRide}>
             <Ionicons name="close" size={22} color="#fff" />
           </TouchableOpacity>
-
           <View style={styles.rideCard} pointerEvents="auto">
-            {/* EN ROUTE */}
             {rideStatus === "en_route" && (
               <>
-                <View
-                  style={[
-                    styles.statusPill,
-                    { backgroundColor: "rgba(59,130,246,0.15)" },
-                  ]}
-                >
+                <View style={[styles.statusPill, { backgroundColor: "rgba(59,130,246,0.15)" }]}>
                   <Ionicons name="navigate" size={14} color="#3b82f6" />
-                  <Text style={[styles.pillText, { color: "#3b82f6" }]}>
-                    En Route
-                  </Text>
+                  <Text style={[styles.pillText, { color: "#3b82f6" }]}>En Route</Text>
                 </View>
                 <Text style={styles.destLabel}>PICKUP</Text>
                 <Text style={styles.destText}>{bookingData?.pickup}</Text>
                 <View style={styles.rideBtnRow}>
-                  <TouchableOpacity
-                    style={[styles.rideBtn, { backgroundColor: "#1e293b" }]}
-                  >
+                  <TouchableOpacity style={[styles.rideBtn, { backgroundColor: "#1e293b" }]}>
                     <Ionicons name="call" size={18} color="#fff" />
                     <Text style={styles.rideBtnText}>Call</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.rideBtn,
-                      { flex: 2, backgroundColor: "#34d399" },
-                    ]}
-                    onPress={handleArrived}
-                  >
+                  <TouchableOpacity style={[styles.rideBtn, { flex: 2, backgroundColor: "#34d399" }]} onPress={handleArrived}>
                     <Ionicons name="checkmark-circle" size={18} color="#000" />
-                    <Text style={[styles.rideBtnText, { color: "#000" }]}>
-                      Arrived
-                    </Text>
+                    <Text style={[styles.rideBtnText, { color: "#000" }]}>Arrived</Text>
                   </TouchableOpacity>
                 </View>
               </>
             )}
-
-            {/* ARRIVED — OTP VERIFICATION */}
             {rideStatus === "arrived" && (
               <>
-                <View
-                  style={[
-                    styles.statusPill,
-                    { backgroundColor: "rgba(250,204,21,0.15)" },
-                  ]}
-                >
+                <View style={[styles.statusPill, { backgroundColor: "rgba(250,204,21,0.15)" }]}>
                   <Ionicons name="key" size={14} color="#facc15" />
-                  <Text style={[styles.pillText, { color: "#facc15" }]}>
-                    Verify PIN
-                  </Text>
+                  <Text style={[styles.pillText, { color: "#facc15" }]}>Verify PIN</Text>
                 </View>
-                <Text style={styles.subText}>
-                  Ask passenger for their 4-digit PIN
-                </Text>
+                <Text style={styles.subText}>Ask passenger for their 4-digit PIN</Text>
                 <View style={styles.otpRow}>
                   {[0, 1, 2, 3].map((i) => (
                     <TextInput
                       key={i}
-                      ref={(r) => {
-                        otpInputs.current[i] = r;
-                      }}
+                      ref={(r) => { otpInputs.current[i] = r; }}
                       style={styles.otpBox}
                       keyboardType="number-pad"
                       maxLength={1}
@@ -1122,14 +954,7 @@ export default function DriverDashboard() {
                   ))}
                 </View>
                 <TouchableOpacity
-                  style={[
-                    styles.rideBtn,
-                    {
-                      backgroundColor: "#000",
-                      borderWidth: 1,
-                      borderColor: "#34d399",
-                    },
-                  ]}
+                  style={[styles.rideBtn, { backgroundColor: "#000", borderWidth: 1, borderColor: "#34d399" }]}
                   onPress={verifyOtpAndStart}
                   disabled={isLoading || otp.join("").length !== 4}
                 >
@@ -1138,36 +963,21 @@ export default function DriverDashboard() {
                   ) : (
                     <>
                       <Ionicons name="play" size={18} color="#34d399" />
-                      <Text style={[styles.rideBtnText, { color: "#34d399" }]}>
-                        Start Ride
-                      </Text>
+                      <Text style={[styles.rideBtnText, { color: "#34d399" }]}>Start Ride</Text>
                     </>
                   )}
                 </TouchableOpacity>
               </>
             )}
-
-            {/* ONGOING */}
             {rideStatus === "ongoing" && (
               <>
-                <View
-                  style={[
-                    styles.statusPill,
-                    { backgroundColor: "rgba(52,211,153,0.15)" },
-                  ]}
-                >
+                <View style={[styles.statusPill, { backgroundColor: "rgba(52,211,153,0.15)" }]}>
                   <Ionicons name="car" size={14} color="#34d399" />
-                  <Text style={[styles.pillText, { color: "#34d399" }]}>
-                    Ride Active
-                  </Text>
+                  <Text style={[styles.pillText, { color: "#34d399" }]}>Ride Active</Text>
                 </View>
                 <Text style={styles.destLabel}>DROPOFF</Text>
                 <Text style={styles.destText}>{bookingData?.dropoff}</Text>
-                <TouchableOpacity
-                  style={[styles.rideBtn, { backgroundColor: "#ef4444" }]}
-                  onPress={endRide}
-                  disabled={isLoading}
-                >
+                <TouchableOpacity style={[styles.rideBtn, { backgroundColor: "#ef4444" }]} onPress={endRide} disabled={isLoading}>
                   {isLoading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
@@ -1183,118 +993,76 @@ export default function DriverDashboard() {
         </View>
       )}
 
-      {/* ===== IDLE ONLINE UI ===== */}
+      {/* IDLE ONLINE UI */}
       {isOnline && !isRideActive && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <SafeAreaView style={styles.bottomSheetWrapper} edges={["bottom"]}>
-            <ScrollView
-              style={styles.bottomSheet}
-              pointerEvents="auto"
-              showsVerticalScrollIndicator={false}
-            >
+            <ScrollView style={styles.bottomSheet} pointerEvents="auto" showsVerticalScrollIndicator={false}>
               <View style={styles.sheetHandle} />
               <View style={styles.profileRow}>
-                <TouchableOpacity
-                  onPress={handleAvatarPress}
-                  style={styles.avatarContainer}
-                >
+                <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarContainer}>
                   {profileImage ? (
-                    <Image
-                      source={{ uri: profileImage }}
-                      style={styles.avatarImg}
-                    />
+                    <Image source={{ uri: profileImage }} style={styles.avatarImg} />
                   ) : (
                     <Ionicons name="person-add" size={24} color="#64748b" />
                   )}
                 </TouchableOpacity>
                 <View style={{ flex: 1, marginLeft: 15 }}>
                   <Text style={styles.welcomeText}>{getGreeting()}</Text>
-                  <Text style={styles.driverNameText}>Anand</Text>
+                  <Text style={styles.driverNameText}>{driverName}</Text>
                 </View>
               </View>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => router.push("/(driver)/wallet")}
-              >
+              <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/(driver)/wallet")}>
                 <View style={styles.earningsCard}>
                   <Text style={styles.earnLabel}>Today's Earnings</Text>
-                  <Text style={styles.earnAmount}>$ 245.50</Text>
+                  <Text style={styles.earnAmount}>{todayEarnings}</Text>
                   <View style={styles.earnFooter}>
                     <View style={styles.earnStat}>
                       <Ionicons name="car-sport" size={16} color="#94a3b8" />
-                      <Text style={styles.earnStatText}>8 Rides</Text>
+                      <Text style={styles.earnStatText}>{todayRides} Rides</Text>
                     </View>
                     <View style={styles.earnStat}>
                       <Ionicons name="time" size={16} color="#94a3b8" />
-                      <Text style={styles.earnStatText}>6.5 Hrs</Text>
+                      <Text style={styles.earnStatText}>{onlineHours}</Text>
                     </View>
                   </View>
                 </View>
               </TouchableOpacity>
-              <View style={styles.actionsGrid}>
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={simulateRide}
-                >
-                  <View
-                    style={[
-                      styles.actionIcon,
-                      { backgroundColor: "rgba(139,92,246,0.15)" },
-                    ]}
-                  >
-                    <Ionicons name="bug-outline" size={20} color="#8b5cf6" />
-                  </View>
-                  <Text style={styles.actionText}>Test Ride</Text>
-                </TouchableOpacity>
-              </View>
               <View style={{ height: 20 }} />
             </ScrollView>
           </SafeAreaView>
         </View>
       )}
 
-      {/* ===== OFFLINE STATE ===== */}
+      {/* OFFLINE STATE */}
       {!isOnline && !isRideActive && (
         <SafeAreaView style={styles.offlineWrapper} edges={["top", "bottom"]}>
-          <ScrollView
-            style={styles.offlineContainer}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          >
+          <ScrollView style={styles.offlineContainer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             <View style={styles.profileRow}>
-              <TouchableOpacity
-                onPress={handleAvatarPress}
-                style={styles.avatarContainer}
-              >
+              <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarContainer}>
                 {profileImage ? (
-                  <Image
-                    source={{ uri: profileImage }}
-                    style={styles.avatarImg}
-                  />
+                  <Image source={{ uri: profileImage }} style={styles.avatarImg} />
                 ) : (
                   <Ionicons name="person-add" size={24} color="#64748b" />
                 )}
               </TouchableOpacity>
               <View style={{ flex: 1, marginLeft: 15 }}>
                 <Text style={styles.welcomeText}>{getGreeting()}</Text>
-                <Text style={styles.driverNameText}>Anand</Text>
+                <Text style={styles.driverNameText}>{driverName}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => router.push("/(driver)/wallet")}
-            >
+            <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/(driver)/wallet")}>
               <View style={styles.earningsCard}>
                 <Text style={styles.earnLabel}>Today's Earnings</Text>
-                <Text style={styles.earnAmount}>$ 245.50</Text>
+                <Text style={styles.earnAmount}>{todayEarnings}</Text>
                 <View style={styles.earnFooter}>
                   <View style={styles.earnStat}>
                     <Ionicons name="car-sport" size={16} color="#94a3b8" />
-                    <Text style={styles.earnStatText}>8 Rides</Text>
+                    <Text style={styles.earnStatText}>{todayRides} Rides</Text>
                   </View>
                   <View style={styles.earnStat}>
                     <Ionicons name="time" size={16} color="#94a3b8" />
-                    <Text style={styles.earnStatText}>6.5 Hrs</Text>
+                    <Text style={styles.earnStatText}>{onlineHours}</Text>
                   </View>
                 </View>
               </View>
@@ -1302,36 +1070,20 @@ export default function DriverDashboard() {
             <View style={styles.statsGrid}>
               <View style={styles.statCard}>
                 <Ionicons name="star" size={24} color="#facc15" />
-                <Text style={styles.statNumber}>4.85</Text>
+                <Text style={styles.statNumber}>{driverRating}</Text>
                 <Text style={styles.statLabel}>Rating</Text>
               </View>
               <View style={styles.statCard}>
                 <Ionicons name="trophy" size={24} color="#34d399" />
-                <Text style={styles.statNumber}>1,250</Text>
+                <Text style={styles.statNumber}>{totalRides.toLocaleString()}</Text>
                 <Text style={styles.statLabel}>Total Rides</Text>
               </View>
-            </View>
-            <View style={styles.actionsGrid}>
-              <TouchableOpacity
-                style={styles.actionItem}
-                onPress={simulateRide}
-              >
-                <View
-                  style={[
-                    styles.actionIcon,
-                    { backgroundColor: "rgba(139,92,246,0.15)" },
-                  ]}
-                >
-                  <Ionicons name="bug-outline" size={20} color="#8b5cf6" />
-                </View>
-                <Text style={styles.actionText}>Test Ride</Text>
-              </TouchableOpacity>
             </View>
           </ScrollView>
         </SafeAreaView>
       )}
 
-      {/* ===== RIDE REQUEST MODAL ===== */}
+      {/* RIDE REQUEST MODAL */}
       <Modal
         animationType="none"
         transparent
@@ -1362,24 +1114,23 @@ export default function DriverDashboard() {
             <View style={styles.passengerRow}>
               <View style={styles.passAvatar}>
                 <Text style={styles.passChar}>
-                  {bookingData?.userName?.charAt(0) || "S"}
+                  {bookingData?.userName?.charAt(0) || "P"}
                 </Text>
               </View>
               <View>
                 <Text style={styles.passName}>
-                  {bookingData?.userName || "Sarah"}
+                  {bookingData?.userName || "Passenger"}
                 </Text>
                 <View style={{ flexDirection: "row" }}>
                   <Ionicons name="star" size={12} color="#facc15" />
                   <Text style={styles.passRating}>
-                    {" "}
-                    {bookingData?.rating || "4.9"}
+                    {" "}{bookingData?.rating || "4.9"}
                   </Text>
                 </View>
               </View>
               <View style={styles.fareBadge}>
                 <Text style={styles.fareText}>
-                  {bookingData?.fare || "₹245"}
+                  {bookingData?.fare || "₹--"}
                 </Text>
               </View>
             </View>
@@ -1425,7 +1176,7 @@ export default function DriverDashboard() {
         </View>
       </Modal>
 
-      {/* ===== VIEW IMAGE MODAL ===== */}
+      {/* VIEW IMAGE MODAL */}
       <Modal visible={isViewModalVisible} transparent animationType="fade">
         <View style={styles.imgModalOverlay}>
           <TouchableOpacity
@@ -1440,7 +1191,7 @@ export default function DriverDashboard() {
         </View>
       </Modal>
 
-      {/* ===== CONFIRM IMAGE MODAL ===== */}
+      {/* CONFIRM IMAGE MODAL */}
       <Modal visible={isConfirmModalVisible} transparent animationType="slide">
         <View style={styles.imgModalOverlay}>
           <View style={styles.confirmCard}>
@@ -1476,11 +1227,21 @@ export default function DriverDashboard() {
   );
 }
 
-// =========================================================================
-// STYLES
-// =========================================================================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
+
+  // Loading screen
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#94a3b8",
+    fontSize: 14,
+    marginTop: 12,
+    fontWeight: "600",
+  },
+
   map: { ...StyleSheet.absoluteFillObject },
   edgeGlowTop: {
     position: "absolute",
@@ -1773,21 +1534,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "600",
   },
-  actionsGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 24,
-  },
-  actionItem: { alignItems: "center", gap: 8 },
-  actionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionText: { fontSize: 11, color: "#64748b", fontWeight: "600" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.85)",

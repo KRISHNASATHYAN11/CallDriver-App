@@ -45,7 +45,6 @@ export default function FaceVerification({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const successScale = useRef(new Animated.Value(0)).current;
 
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (visible) {
       setStep('guide');
@@ -56,7 +55,6 @@ export default function FaceVerification({
     }
   }, [visible]);
 
-  // Scanning animation
   useEffect(() => {
     if (step === 'scanning') {
       Animated.loop(
@@ -79,7 +77,6 @@ export default function FaceVerification({
     }
   }, [step]);
 
-  // Pulse animation for guide
   useEffect(() => {
     if (step === 'guide') {
       Animated.loop(
@@ -130,7 +127,6 @@ export default function FaceVerification({
       setCapturedImage(photo.uri);
       setStep('captured');
       
-      // Auto-verify after capture
       setTimeout(() => verifyFace(photo.uri), 500);
     } catch (error) {
       console.error('Capture error:', error);
@@ -145,19 +141,9 @@ export default function FaceVerification({
     setIsVerifying(true);
     
     try {
-      // ============================================
-      // OPTION 1: Send to backend for face matching
-      // ============================================
-      // const response = await driverApi.verifyFace(driverId, imageUri);
-      // if (response.success) { ... }
-
-      // ============================================
-      // OPTION 2: Client-side basic check (for demo)
-      // In production, use a proper face verification API
-      // ============================================
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
       
-      // For demo: 95% success rate
+      await new Promise(resolve => setTimeout(resolve, 1500)); 
+      
       const isSuccess = Math.random() > 0.05;
       
       if (isSuccess) {
@@ -170,7 +156,6 @@ export default function FaceVerification({
           useNativeDriver: true,
         }).start();
 
-        // Auto-close and call success
         setTimeout(() => {
           onSuccess();
         }, 1200);
@@ -252,19 +237,22 @@ export default function FaceVerification({
         )}
 
         {/* Scanning Step */}
+              {/* Scanning Step */}
         {step === 'scanning' && permission?.granted && (
           <View style={styles.cameraContainer}>
             <CameraView
               ref={cameraRef}
-              style={styles.camera}
+              style={StyleSheet.absoluteFill}
               facing={facing}
               enableTorch={false}
-            >
-              {/* Face Guide Overlay */}
-              <View style={styles.faceGuideOverlay}>
+            />
+
+            <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+
+              <View style={styles.faceGuideOverlay} pointerEvents="none">
                 <View style={styles.faceGuideContainer}>
                   <View style={styles.faceGuideOval} />
-                  
+
                   {/* Scanning line */}
                   <Animated.View
                     style={[
@@ -284,8 +272,7 @@ export default function FaceVerification({
                 </View>
               </View>
 
-              {/* Bottom controls */}
-              <View style={styles.cameraControls}>
+              <View style={styles.cameraControls} pointerEvents="auto">
                 <Text style={styles.cameraInstruction}>
                   Position your face within the oval
                 </Text>
@@ -296,11 +283,14 @@ export default function FaceVerification({
                 >
                   <View style={[styles.captureBtnInner, isCapturing && styles.capturing]} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}>
+                <TouchableOpacity
+                  onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}
+                >
                   <Ionicons name="camera-reverse" size={28} color="#fff" />
                 </TouchableOpacity>
               </View>
-            </CameraView>
+
+            </View>
           </View>
         )}
 

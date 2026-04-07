@@ -1,4 +1,3 @@
-
 import axios, { AxiosInstance, AxiosError } from "axios";
 
 const BASE_URL =
@@ -23,7 +22,7 @@ apiClient.interceptors.request.use(
     // if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // Response interceptor — normalise errors
@@ -31,16 +30,14 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<any>) => {
     const message =
-      error.response?.data?.message ||
-      error.message ||
-      "Something went wrong";
+      error.response?.data?.message || error.message || "Something went wrong";
     console.log("❌ API Error:", message);
     return Promise.reject({
       message,
       status: error.response?.status,
       data: error.response?.data,
     });
-  }
+  },
 );
 
 // ---------------------------------------------------------------------------
@@ -68,7 +65,7 @@ export const driverApi = {
   /** Selfie verification — called before going online */
   verifySelfie: async (
     driverId: string,
-    selfieBase64: string
+    selfieBase64: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.post(`/driver/${driverId}/verify-selfie`, {
       selfie: selfieBase64,
@@ -80,9 +77,9 @@ export const driverApi = {
   /** Toggle driver online / offline status */
   toggleOnlineStatus: async (
     driverId: string,
-    isOnline: boolean
+    isOnline: boolean,
   ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.patch(`/driver/${driverId}/toggle-online`, {
+    const res = await apiClient.post(`/driver/online/${driverId}`, {
       isOnline,
     });
     return res.data;
@@ -91,7 +88,7 @@ export const driverApi = {
   /** Update driver profile fields */
   updateDriver: async (
     driverId: string,
-    updates: Record<string, any>
+    updates: Record<string, any>,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.put(`/driver/${driverId}`, updates);
     return res.data;
@@ -99,32 +96,34 @@ export const driverApi = {
 
   /** Get driver profile */
   getDriver: async (
-    driverId: string
+    driverId: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.get(`/driver/${driverId}`);
     return res.data;
   },
 
   /** Update live location — persisted to DB */
-  updateLocation: async (
-    driverId: string,
-    lng: number,
-    lat: number
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.patch(`/driver/${driverId}/location`, {
-      lng,
-      lat,
-    });
-    return res.data;
-  },
+ updateLocation: async (
+  driverId: string,
+  lng: number,
+  lat: number,
+): Promise<{ success: boolean; data: any }> => {
+
+  const res = await apiClient.put(`/driver/location/${driverId}`, {
+    lng,
+    lat,
+  });
+
+  return res.data;
+},
 
   /** Get earnings for a period */
   getEarnings: async (
     driverId: string,
-    period: "today" | "week" | "month" = "today"
+    period: "today" | "week" | "month" = "today",
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.get(
-      `/driver/${driverId}/earnings?period=${period}`
+      `/driver/${driverId}/earnings?period=${period}`,
     );
     return res.data;
   },
@@ -132,7 +131,7 @@ export const driverApi = {
   /** Update FCM push-notification token */
   updateFcmToken: async (
     driverId: string,
-    fcmToken: string
+    fcmToken: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.patch(`/driver/${driverId}/fcm-token`, {
       fcmToken,
@@ -149,7 +148,7 @@ export const bookingApi = {
   acceptBooking: async (
     bookingId: string,
     driverId: string,
-    driverLocation: { lat: number; lng: number }
+    driverLocation: { lat: number; lng: number },
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.post(`/booking/${bookingId}/accept`, {
       driverId,
@@ -161,7 +160,7 @@ export const bookingApi = {
   /** Reject / decline a booking */
   rejectBooking: async (
     bookingId: string,
-    driverId: string
+    driverId: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.post(`/booking/${bookingId}/reject`, {
       driverId,
@@ -172,7 +171,7 @@ export const bookingApi = {
   /** Start trip — server verifies OTP */
   startTrip: async (
     bookingId: string,
-    otp: string
+    otp: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.post(`/booking/${bookingId}/start`, {
       otp,
@@ -184,7 +183,7 @@ export const bookingApi = {
   endTrip: async (
     bookingId: string,
     driverId: string,
-    endTime: number
+    endTime: number,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.post(`/booking/${bookingId}/end`, {
       driverId,
@@ -196,7 +195,7 @@ export const bookingApi = {
   /** Mark driver as arrived at pickup */
   markArrived: async (
     bookingId: string,
-    driverId: string
+    driverId: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.post(`/booking/${bookingId}/arrive`, {
       driverId,
@@ -206,7 +205,7 @@ export const bookingApi = {
 
   /** Get single booking details */
   getBooking: async (
-    bookingId: string
+    bookingId: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.get(`/booking/${bookingId}`);
     return res.data;
@@ -214,7 +213,7 @@ export const bookingApi = {
 
   /** Get driver's currently active booking */
   getActiveBooking: async (
-    driverId: string
+    driverId: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.get(`/booking/driver/${driverId}/active`);
     return res.data;
@@ -226,13 +225,13 @@ export const bookingApi = {
 // =============================================================================
 export const notificationApi = {
   getNotifications: async (
-    driverId: string
+    driverId: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.get(`/notifications/${driverId}`);
     return res.data;
   },
   markRead: async (
-    notificationId: string
+    notificationId: string,
   ): Promise<{ success: boolean; data: any }> => {
     const res = await apiClient.patch(`/notifications/${notificationId}/read`);
     return res.data;

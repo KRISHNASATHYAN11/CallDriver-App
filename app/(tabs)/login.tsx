@@ -303,13 +303,13 @@ export default function LoginScreen() {
               style={styles.logoImage}
               resizeMode="contain"
             />
-            <Animatable.Text
+            {/* <Animatable.Text
               animation="fadeIn"
               delay={800}
               style={styles.appName}
             >
-              CallDriver
-            </Animatable.Text>
+              Call Driver
+            </Animatable.Text> */}
             <Animatable.Text
               animation="fadeIn"
               delay={1000}
@@ -425,7 +425,7 @@ export default function LoginScreen() {
                   style={styles.loginBtn}
                 >
                   <LinearGradient
-                    colors={["#000", "#aaa"]}
+                    colors={["#fff", "#fff"]}
                     style={styles.btnGradient}
                   >
                     {loading ? (
@@ -473,7 +473,7 @@ export default function LoginScreen() {
                   style={styles.loginBtn}
                 >
                   <LinearGradient
-                    colors={["#000", "#aaa"]}
+                    colors={["#fff", "#fff"]}
                     style={styles.btnGradient}
                   >
                     {loading ? (
@@ -715,7 +715,7 @@ export default function LoginScreen() {
                   style={styles.loginBtn}
                 >
                   <LinearGradient
-                    colors={["#000", "#aaa"]}
+                    colors={["#fff", "#fff"]}
                     style={styles.btnGradient}
                   >
                     {loading ? (
@@ -759,7 +759,7 @@ export default function LoginScreen() {
               onPress={handleDriverConfirm}
               style={styles.modalBtnWrapper}
             >
-              <LinearGradient colors={["#000", "#aaa"]} style={styles.modalBtn}>
+              <LinearGradient colors={["#fff", "#fff"]} style={styles.modalBtn}>
                 <Text style={styles.modalBtnText}>Got it!</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -780,7 +780,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   bgCircle: { position: "absolute", borderRadius: 200, opacity: 0.6 },
   logoContainer: { alignItems: "center", marginTop: 20, marginBottom: 10 },
-  logoImage: { width: 130, height: 130 },
+  logoImage: { width: 200, height: 200 },
   appName: {
     fontSize: 32,
     fontWeight: "bold",
@@ -865,7 +865,7 @@ const styles = StyleSheet.create({
   loginBtnText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#fff",
+    color: "black",
     letterSpacing: 1,
   },
 
@@ -975,7 +975,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
   },
-  modalBtnText: { fontSize: 17, fontWeight: "bold", color: "#fff" },
+  modalBtnText: { fontSize: 17, fontWeight: "bold", color: "#000" },
   modalCancelBtn: { marginTop: 15 },
   modalCancelText: { color: "#90A4AE", fontWeight: "600" },
 });
