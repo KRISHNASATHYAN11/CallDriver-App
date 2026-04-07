@@ -2,6 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
+import api from "../../src/api/index";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Dimensions,
@@ -21,6 +23,14 @@ import * as Animatable from "react-native-animatable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import * as ImagePicker from "expo-image-picker";
+import {
+  sendDriverOtp,
+  sendUserOtp,
+  updateDriver,
+  updateUser,
+  verifyDriverOtp,
+  verifyUserOtp,
+} from "../../src/api/authApi";
 
 const { width, height } = Dimensions.get("window");
 
@@ -34,12 +44,16 @@ export default function LoginScreen() {
   >("phone");
 
   const [phoneNumber, setPhoneNumber] = useState<string>("");
-  const [otp, setOtp] = useState<string[]>(["", "", "", ""]);
+  const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
 
   // New User Fields
   const [name, setName] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "other" | "">("");
+  const [age, setAge] = useState("");
+  const [driverGender, setDriverGender] = useState<
+    "male" | "female" | "other" | ""
+  >("");
 
   // Driver Fields
   const [licenseNumber, setLicenseNumber] = useState("");
@@ -50,6 +64,8 @@ export default function LoginScreen() {
   const [isModalVisible, setModalVisible] = useState(false);
 
   const otpInputs = useRef<(TextInput | null)[]>([]);
+  const [isExistingUser, setIsExistingUser] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // --- Image Picker Logic ---
 
@@ -108,7 +124,7 @@ export default function LoginScreen() {
 
   const resetForms = () => {
     setStage("phone");
-    setOtp(["", "", "", ""]);
+    setOtp(["", "", "", "", "", ""]);
     setName("");
     setGender("");
     setLicenseNumber("");
@@ -129,112 +145,203 @@ export default function LoginScreen() {
     setLoading(true);
 
     // PHONE STAGE -> Send OTP
+
     if (stage === "phone") {
-      setTimeout(() => {
+      try {
+        const res =
+          userType === "user"
+            ? await sendUserOtp(phoneNumber)
+            : await sendDriverOtp(phoneNumber);
+
         setLoading(false);
+
+        if (res.message === "OTP sent successfully") {
+          setIsExistingUser(res.existingUser);
+          Toast.show({
+            type: "success",
+            text1: "OTP Sent",
+            text2: `Code sent to +91${phoneNumber}`,
+          });
+
+          setStage("otp");
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Failed",
+            text2: "Something went wrong",
+          });
+        }
+      } catch (err: any) {
+        setLoading(false);
+
         Toast.show({
-          type: "success",
-          text1: "OTP Sent",
-          text2: `Code sent to +91${phoneNumber}`,
+          type: "error",
+          text1: "Error",
+          text2: "Server error",
         });
-        setStage("otp");
-      }, 1500);
+      }
     }
     // OTP STAGE -> Verify & Redirect based on logic
     else if (stage === "otp") {
       const otpCode = otp.join("");
-      if (otpCode.length < 4) {
+
+      if (otpCode.length !== 6) {
         setLoading(false);
         Toast.show({
           type: "error",
           text1: "Invalid OTP",
-          text2: "Enter complete code.",
+          text2: "Enter 6-digit code",
         });
         return;
       }
 
-      // MOCK API CALL TO CHECK IF USER EXISTS
-      setTimeout(() => {
+      try {
+        const res =
+          userType === "user"
+            ? await verifyUserOtp(phoneNumber, otpCode)
+            : await verifyDriverOtp(phoneNumber, otpCode);
+
         setLoading(false);
 
-        // DEMO LOGIC: If phone ends with '123' treat as Existing User, else New
-        const isExisting = phoneNumber.endsWith("123");
+        if (res.token) {
+          setUserId(res.user.id);
+          await AsyncStorage.setItem("token", res.token);
+          api.defaults.headers.common["Authorization"] = `Bearer ${res.token}`;
+          Toast.show({
+            type: "success",
+            text1: "OTP Verified",
+            text2: `Welcome +91${phoneNumber}`,
+          });
 
-        if (userType === "user") {
-          if (isExisting) {
-            router.replace("/(user)/userdashboard");
+          // ✅ USE BACKEND RESPONSE (IMPORTANT)
+          if (isExistingUser) {
+            // Existing → go dashboard
+            if (userType === "user") {
+              router.replace("/(user)/userdashboard");
+            } else {
+              router.replace("/(driver)/driverdashboard");
+            }
           } else {
-            setStage("newUser"); // Go to registration form
+            // New user → ask details
+            if (userType === "user") {
+              setStage("newUser");
+            } else {
+              setStage("newDriver");
+            }
           }
         } else {
-          // Driver Flow
-          if (isExisting) {
-            setStage("existingDriver"); // Only needs Live Photo
-          } else {
-            setStage("newDriver"); // Needs full details
-          }
+          Toast.show({
+            type: "error",
+            text1: "Invalid OTP",
+            text2: "Try again",
+          });
         }
-      }, 1500);
+      } catch (err: any) {
+        setLoading(false);
+
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: err?.response?.data?.message || "Verification failed",
+        });
+      }
     }
   };
 
   // FINAL SUBMISSION FOR NEW/EXISTING PROFILES
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
+    if (!userId) return;
+
     setLoading(true);
 
-    // Validations
-    if (stage === "newUser") {
-      if (!name || !gender) {
-        Toast.show({
-          type: "error",
-          text1: "Incomplete",
-          text2: "Name & Gender required.",
-        });
-        setLoading(false);
-        return;
-      }
-    }
+    try {
+      // ================= USER =================
+      if (stage === "newUser") {
+        if (!name || !gender) {
+          Toast.show({
+            type: "error",
+            text1: "Incomplete",
+            text2: "Name & Gender required.",
+          });
+          setLoading(false);
+          return;
+        }
 
-    if (stage === "newDriver") {
-      if (!name || !licenseNumber || !licensePhoto || !livePhoto) {
-        Toast.show({
-          type: "error",
-          text1: "Incomplete",
-          text2: "All fields & photos required.",
-        });
-        setLoading(false);
-        return;
-      }
-    }
+        await updateUser(userId, name, gender);
 
-    if (stage === "existingDriver") {
-      if (!livePhoto) {
         Toast.show({
-          type: "error",
-          text1: "Verification Failed",
-          text2: "Live photo required.",
+          type: "success",
+          text1: "Profile Updated",
         });
-        setLoading(false);
-        return;
-      }
-    }
 
-    // API CALL HERE
-    setTimeout(() => {
-      setLoading(false);
-      if (userType === "user") {
         router.replace("/(user)/userdashboard");
-      } else {
+      }
+
+      // ================= DRIVER =================
+      else if (stage === "newDriver") {
+        if (
+          !name ||
+          // !driverGender ||
+          // !age ||
+          !licenseNumber ||
+          !licensePhoto ||
+          !livePhoto
+        ) {
+          Toast.show({
+            type: "error",
+            text1: "Incomplete",
+            text2: "Fill all driver details",
+          });
+          setLoading(false);
+          return;
+        }
+
+        const formData = new FormData();
+
+        formData.append("name", name);
+        formData.append("gender", driverGender);
+        formData.append("age", age);
+        formData.append("licenseNumber", licenseNumber);
+
+        formData.append("licenseImage", {
+          uri: licensePhoto,
+          name: "license.jpg",
+          type: "image/jpeg",
+        } as any);
+
+        formData.append("livePhoto", {
+          uri: livePhoto,
+          name: "live.jpg",
+          type: "image/jpeg",
+        } as any);
+
+        await updateDriver(userId, formData);
+
+        Toast.show({
+          type: "success",
+          text1: "Driver Registered",
+        });
+
         router.replace("/(driver)/driverdashboard");
       }
-    }, 2000);
+
+      setLoading(false);
+    } catch (err: any) {
+      setLoading(false);
+
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: err?.response?.data?.message || "Something went wrong",
+      });
+    }
   };
 
   const handleOtpChange = (text: string, index: number) => {
     let newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
-    if (text && index < 3) otpInputs.current[index + 1]?.focus();
+    if (text && index < 5) otpInputs.current[index + 1]?.focus();
     if (!text && index > 0) otpInputs.current[index - 1]?.focus();
   };
 
@@ -451,10 +558,10 @@ export default function LoginScreen() {
                 </Text>
 
                 <View style={styles.otpContainer}>
-                  {[0, 1, 2, 3].map((_, index) => (
+                  {[0, 1, 2, 3, 4, 5].map((_, index) => (
                     <TextInput
                       key={index}
-                      ref={(ref: TextInput | null) => {
+                      ref={(ref) => {
                         otpInputs.current[index] = ref;
                       }}
                       style={styles.otpInput}
@@ -634,7 +741,7 @@ export default function LoginScreen() {
                 </Text>
 
                 {/* Removed Nested ScrollView - content flows naturally now */}
-                
+
                 <View style={styles.inputWrapper}>
                   <Ionicons
                     name="person-outline"
@@ -699,11 +806,7 @@ export default function LoginScreen() {
                     />
                   ) : (
                     <View style={styles.placeholderDoc}>
-                      <Ionicons
-                        name="camera-outline"
-                        size={30}
-                        color="#555"
-                      />
+                      <Ionicons name="camera-outline" size={30} color="#555" />
                       <Text style={{ color: "#555" }}>Take Selfie</Text>
                     </View>
                   )}
@@ -842,14 +945,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginVertical: 20,
   },
+
   otpInput: {
-    width: 60,
-    height: 65,
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: "#333",
+    width: 50,
+    height: 60,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#444",
     textAlign: "center",
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#fff",
     backgroundColor: "#1a1a1a",
