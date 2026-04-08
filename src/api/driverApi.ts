@@ -1,14 +1,13 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 
-const BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL_DEV || "http://192.168.29.15:3000";
+const BASE_URL ="http://192.168.20.5:3000";
 
 // ---------------------------------------------------------------------------
 // Axios instance with interceptors
 // ---------------------------------------------------------------------------
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000,
+  timeout: 10000,
   headers: {
     "Content-Type": "application/json",
   },
