@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 
-const BASE_URL ="http://192.168.20.5:3000";
+const BASE_URL ="http://192.168.1.38:3000";
 
 // ---------------------------------------------------------------------------
 // Axios instance with interceptors

@@ -17,12 +17,12 @@ const api = axios.create({
 
 export const sendUserOtp = async (mobile: string) => {
   console.log(mobile, 'mobile');
-  const res = await api.post("http://192.168.20.5:3000/auth/sendOtp", { mobile });
+  const res = await api.post("http://192.168.1.38:3000/auth/sendOtp", { mobile });
   return res.data;
 };
 
 export const verifyUserOtp = async (mobile: string, otp: string) => {
-  const res = await api.post("http://192.168.20.5:3000/auth/verifyOtp", { mobile, otp });
+  const res = await api.post("http://192.168.1.38:3000/auth/verifyOtp", { mobile, otp });
   return res.data;
 };
 
@@ -31,12 +31,12 @@ export const verifyUserOtp = async (mobile: string, otp: string) => {
 // ==========================
 
 export const sendDriverOtp = async (mobile: string) => {
-  const res = await api.post("http:// 192.168.20.5:3000/auth/sendDriverOtp", { mobile });
+  const res = await api.post("http://192.168.1.38:3000/auth/sendDriverOtp", { mobile });
   return res.data;
 };
 
 export const verifyDriverOtp = async (mobile: string, otp: string) => {
-  const res = await api.post("http://192.168.20.5:3000/auth/verifyDriverOtp", { mobile, otp });
+  const res = await api.post("http://192.168.1.38:3000/auth/verifyDriverOtp", { mobile, otp });
   return res.data;
 };
 
@@ -46,11 +46,11 @@ export const verifyDriverOtp = async (mobile: string, otp: string) => {
 // ==========================
 
 export const updateUser = async (userId : string, name: string, gender: string) => {
-  const res = await api.put(`http://192.168.20.5:3000/customer/${userId}`, { name, gender });
+  const res = await api.put(`http://192.168.1.38:3000/customer/${userId}`, { name, gender });
   return res.data;
 };
 
 export const updateDriver = async (id: string, data: any) => {
-  const res = await api.put(`http://192.168.20.5:3000/driver/${id}`, data);
+  const res = await api.put(`http://192.168.1.38:3000/driver/${id}`, data);
   return res.data;
 };
