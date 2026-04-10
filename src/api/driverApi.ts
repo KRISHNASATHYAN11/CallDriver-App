@@ -78,7 +78,7 @@ export const driverApi = {
     driverId: string,
     isOnline: boolean,
   ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.post(`/driver/online/${driverId}`, {
+    const res = await apiClient.post(`http://192.168.1.7:3000/driver/online/${driverId}`, {
       isOnline,
     });
     return res.data;

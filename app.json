@@ -53,6 +53,7 @@
       "expo-audio",
       "expo-video",
       "expo-secure-store"
+      // <--- REMOVED react-native-razorpay FROM HERE
     ],
     "experiments": {
       "typedRoutes": true,

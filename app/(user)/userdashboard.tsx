@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import * as Location from "expo-location";
 import {
   View,
@@ -19,6 +19,10 @@ import MapView, { Marker, Region, MapPressEvent } from "react-native-maps";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
+import { bookingApi } from "@/src/api/bookingApi";
+
+// ✅ IMPORT YOUR API HERE
+ // Adjust the path as needed
 
 const { width, height } = Dimensions.get("window");
 
@@ -131,7 +135,7 @@ const LocationSearch = ({
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${text}&countrycodes=in`,
-          { headers: { "User-Agent": "driver-app" } },
+          { headers: { "User-Agent": "driver-app" } }
         );
         const data = await res.json();
         setResults(data);
@@ -196,32 +200,38 @@ const LocationSearch = ({
         ) : null}
       </View>
 
-      {isSearching && results.length > 0 && (
+      {isSearching && Array.isArray(results) && results.length > 0 && (
         <View style={styles.dropdownContainer}>
           <FlatList
-            data={results}
-            keyExtractor={(_, i) => i.toString()}
+            data={Array.isArray(results) ? results : []}
+            keyExtractor={(item, i) => i.toString()}
             keyboardShouldPersistTaps="always"
             nestedScrollEnabled={true}
             style={{ maxHeight: 200 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.resultItem}
-                onPress={() => handleSelect(item)}
-              >
-                <View style={styles.resultIcon}>
-                  <View style={styles.resultIconInner} />
-                </View>
-                <View style={styles.resultTextContainer}>
-                  <Text style={styles.resultMainText} numberOfLines={1}>
-                    {item.display_name.split(",")[0]}
-                  </Text>
-                  <Text style={styles.resultSubText} numberOfLines={1}>
-                    {item.display_name}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              if (!item || !item.display_name) return null;
+
+              return (
+                <TouchableOpacity
+                  style={styles.resultItem}
+                  onPress={() => handleSelect(item)}
+                >
+                  <View style={styles.resultIcon}>
+                    <View style={styles.resultIconInner} />
+                  </View>
+
+                  <View style={styles.resultTextContainer}>
+                    <Text style={styles.resultMainText} numberOfLines={1}>
+                      {item?.display_name?.split(",")[0] || "Unknown"}
+                    </Text>
+
+                    <Text style={styles.resultSubText} numberOfLines={1}>
+                      {item?.display_name || "No address"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
       )}
@@ -229,10 +239,216 @@ const LocationSearch = ({
   );
 };
 
+/* ================= FETCHING DRIVER MODAL ================= */
+const FetchingDriverModal = ({
+  visible,
+  onCancel,
+}: {
+  visible: boolean;
+  onCancel: () => void;
+}) => {
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const dotOpacity1 = useRef(new Animated.Value(0.3)).current;
+  const dotOpacity2 = useRef(new Animated.Value(0.3)).current;
+  const dotOpacity3 = useRef(new Animated.Value(0.3)).current;
+  const fadeScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) {
+      fadeScale.setValue(0);
+      return;
+    }
+
+    Animated.timing(fadeScale, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotOpacity1, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dotOpacity2, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+          delay: 150,
+        }),
+        Animated.timing(dotOpacity3, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+          delay: 300,
+        }),
+        Animated.timing(dotOpacity1, {
+          toValue: 0.3,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dotOpacity2, {
+          toValue: 0.3,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dotOpacity3, {
+          toValue: 0.3,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    return () => {
+      pulseAnim.stopAnimation();
+      rotateAnim.stopAnimation();
+      dotOpacity1.stopAnimation();
+      dotOpacity2.stopAnimation();
+      dotOpacity3.stopAnimation();
+    };
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.6],
+  });
+
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.6, 0.2, 0],
+  });
+
+  return (
+    <Modal animationType="fade" transparent visible={visible}>
+      <Animated.View
+        style={[
+          styles.fetchOverlay,
+          {
+            opacity: fadeScale,
+            transform: [{ scale: fadeScale }],
+          },
+        ]}
+      >
+        <View style={styles.fetchBackdrop} />
+        <Animated.View style={styles.fetchCard}>
+          <View style={styles.fetchIconContainer}>
+            <Animated.View
+              style={[
+                styles.fetchPulseRing,
+                {
+                  transform: [{ scale: pulseScale }],
+                  opacity: pulseOpacity,
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.fetchPulseRing,
+                {
+                  transform: [
+                    {
+                      scale: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 2],
+                      }),
+                    },
+                  ],
+                  opacity: pulseAnim.interpolate({
+                    inputRange: [0, 0.3, 1],
+                    outputRange: [0.4, 0.1, 0],
+                  }),
+                },
+              ]}
+            />
+            <Animated.View
+              style={[styles.fetchRotatingArc, { transform: [{ rotate }] }]}
+            >
+              <View style={styles.fetchArcSegment} />
+            </Animated.View>
+            <View style={styles.fetchCenterIcon}>
+              <Text style={styles.fetchCarEmoji}>🚗</Text>
+            </View>
+          </View>
+
+          <Text style={styles.fetchTitle}>Finding your driver</Text>
+          <View style={styles.fetchDotsRow}>
+            <Animated.View style={[styles.fetchDot, { opacity: dotOpacity1 }]} />
+            <Animated.View style={[styles.fetchDot, { opacity: dotOpacity2 }]} />
+            <Animated.View style={[styles.fetchDot, { opacity: dotOpacity3 }]} />
+          </View>
+          <Text style={styles.fetchSubtext}>
+            Searching nearby drivers for you
+          </Text>
+
+          <View style={styles.fetchProgressTrack}>
+            <Animated.View style={styles.fetchProgressFill} />
+          </View>
+
+          <View style={styles.fetchStatusRow}>
+            <View style={styles.fetchStatusChip}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.fetchStatusText}>Scanning area</Text>
+            </View>
+            <View style={styles.fetchStatusChip}>
+              <Text style={styles.fetchStatusCount}>3</Text>
+              <Text style={styles.fetchStatusText}>Nearby</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.fetchCancelButton}
+            onPress={onCancel}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.fetchCancelText}>Cancel Search</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  );
+};
+
 /* ================= MAIN SCREEN ================= */
 
 export default function UserDashboard() {
   const [pickup, setPickup] = useState("");
+  // ✅ ADDED STATE FOR DROP LOCATION (Required by API)
+  const [destination, setDestination] = useState(""); 
+  
   const [vehicleType, setVehicleType] = useState("Sedan");
   const [vehicleNumber, setVehicleNumber] = useState("");
   const mapRef = useRef<MapView>(null);
@@ -268,6 +484,12 @@ export default function UserDashboard() {
   const [isSuccessModalVisible, setSuccessModalVisible] = useState(false);
   const [bookingOtp, setBookingOtp] = useState("");
 
+  const [isFetchingDriver, setIsFetchingDriver] = useState(false);
+  const fetchTimerRef = useRef<any>(null);
+
+  // 🔥 Confirmed state — when true, show OTP-only panel
+  const [isBookingConfirmed, setIsBookingConfirmed] = useState(false);
+
   const panTimerRef = useRef<any>(null);
 
   const showConfirmButtonAnimated = useCallback(() => {
@@ -299,13 +521,13 @@ export default function UserDashboard() {
 
   const fetchAddressFromCoords = async (
     latitude: number,
-    longitude: number,
+    longitude: number
   ) => {
     setLoadingAddress(true);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-        { headers: { "User-Agent": "driver-app" } },
+        { headers: { "User-Agent": "driver-app" } }
       );
       const data = await res.json();
       if (data.display_name) {
@@ -432,7 +654,19 @@ export default function UserDashboard() {
     router.replace("/login");
   };
 
-  const handleBooking = () => {
+  const handleCancelFetching = () => {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    setIsFetchingDriver(false);
+    Toast.show({
+      type: "info",
+      text1: "Search cancelled",
+      position: "bottom",
+    });
+  };
+
+  // ✅ UPDATED HANDLE BOOKING WITH API INTEGRATION
+    // ✅ UPDATED HANDLE BOOKING WITH FIX
+  const handleBooking = async () => {
     if (!pickup) {
       Toast.show({
         type: "error",
@@ -442,28 +676,69 @@ export default function UserDashboard() {
       return;
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    setBookingOtp(otp);
+    if (!destination) {
+      Toast.show({
+        type: "error",
+        text1: "Please enter a destination",
+        position: "bottom",
+      });
+      return;
+    }
 
-    const scheduleData = isScheduled
-      ? {
-          date: selectedDate.toLocaleDateString(),
-          time: selectedTime.toLocaleTimeString(),
-        }
-      : "Now";
+    setIsFetchingDriver(true);
 
-    const data = {
-      pickup,
-      latitude: selectedPin?.latitude || coords.latitude,
-      longitude: selectedPin?.longitude || coords.longitude,
-      schedule: scheduleData,
-      vehicleType,
-      vehicleNumber,
-      otp: otp,
+    const lat = selectedPin?.latitude || coords.latitude;
+    const lng = selectedPin?.longitude || coords.longitude;
+
+    // Mocking drop coordinates
+    const dropLat = lat + 0.01;
+    const dropLng = lng + 0.01;
+
+    // ✅ FIX: Add 'as [number, number]' to satisfy the TypeScript strict type
+    const payload = {
+      user: "69d5df200f3bb4f757c8e407", // Replace with actual user ID
+      pickupLocation: {
+        type: "Point" as const,
+        coordinates: [lng, lat] as [number, number], // <--- FIX HERE
+        address: pickup,
+      },
+      dropLocation: {
+        type: "Point" as const,
+        coordinates: [dropLng, dropLat] as [number, number], // <--- FIX HERE
+        address: destination,
+      },
+      rideType: vehicleType,
     };
 
-    console.log("BOOKING DATA:", data);
-    setSuccessModalVisible(true);
+    try {
+      const response = await bookingApi.createBooking(payload);
+
+      if (response.success) {
+        console.log("Booking Success:", response.data);
+        
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+        setBookingOtp(otp);
+
+        setIsFetchingDriver(false);
+        setSuccessModalVisible(true);
+      } else {
+        throw new Error("Booking failed");
+      }
+    } catch (error: any) {
+      console.error("Booking Error:", error);
+      setIsFetchingDriver(false);
+      Toast.show({
+        type: "error",
+        text1: "Booking Failed",
+        text2: error.message || "Could not connect to server",
+      });
+    }
+  };
+
+  // 🔥 Done button → show OTP-only dashboard
+  const handleDone = () => {
+    setSuccessModalVisible(false);
+    setIsBookingConfirmed(true);
   };
 
   const formatDisplayTime = () => {
@@ -521,7 +796,7 @@ export default function UserDashboard() {
       </TouchableOpacity>
 
       {/* TAP INSTRUCTION */}
-      {!selectedPin && !isSearching && (
+      {!selectedPin && !isSearching && !isBookingConfirmed && (
         <View style={styles.tapInstructionContainer} pointerEvents="none">
           {/* <View style={styles.tapInstructionBox}>
             <Text style={styles.tapInstructionIcon}>👆</Text>
@@ -536,7 +811,7 @@ export default function UserDashboard() {
       </TouchableOpacity>
 
       {/* CONFIRM LOCATION BUTTON */}
-      {showConfirmButton && (
+      {showConfirmButton && !isBookingConfirmed && (
         <Animated.View
           style={[
             styles.confirmLocationContainer,
@@ -561,98 +836,182 @@ export default function UserDashboard() {
       )}
 
       {/* ================= BOTTOM PANEL ================= */}
-      <View style={styles.panel}>
+      <View
+        style={[
+          styles.panel,
+          isBookingConfirmed && styles.panelConfirmed,
+        ]}
+      >
         <View style={styles.panelHandle} />
 
-        {/* 🔥 MOVE THIS OUTSIDE */}
-        <LocationSearch
-          mapRef={mapRef}
-          inputRef={inputRef}
-          setCoords={setCoords}
-          setPickup={setPickup}
-          isSearching={isSearching}
-          setIsSearching={setIsSearching}
-          setSelectedPin={setSelectedPin}
-          setMapMode={setMapMode}
-          pickup={pickup}
-        />
-
-        {/* 🔥 Scroll only static content */}
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.panelTitle}>Book your driver</Text>
-
-          {loadingAddress && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#fff" />
-              <Text style={styles.loadingText}>
-                Fetching location address...
-              </Text>
-            </View>
-          )}
-
-          {/* SCHEDULE */}
-          <TouchableOpacity
-            style={styles.scheduleRow}
-            onPress={() => setScheduleModalVisible(true)}
+        {/* ========== OTP-ONLY VIEW ========== */}
+        {isBookingConfirmed ? (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            contentContainerStyle={styles.otpPanelContent}
           >
-            <View style={styles.scheduleIconContainer}>
-              <Text style={{ fontSize: 20 }}>🕐</Text>
+            {/* Status badge */}
+            <View style={styles.confirmedBadge}>
+              <View style={styles.confirmedBadgeDot} />
+              <Text style={styles.confirmedBadgeText}>RIDE CONFIRMED</Text>
             </View>
-            <View style={styles.scheduleTextContainer}>
-              <Text style={styles.scheduleLabel}>When</Text>
-              <Text style={styles.scheduleValue}>{formatDisplayTime()}</Text>
+
+            {/* Driver arriving animation area */}
+            <View style={styles.driverArrivingIconContainer}>
+              <View style={styles.driverArrivingRing} />
+              <View style={styles.driverArrivingRingOuter} />
+              <Text style={styles.driverArrivingEmoji}>🚗</Text>
             </View>
-            <Text style={styles.scheduleChevron}>›</Text>
-          </TouchableOpacity>
 
-          {/* VEHICLE TYPE */}
-          <Text style={styles.sectionLabel}>Choose Service</Text>
-          <View style={styles.vehicleChipsRow}>
-            {["Mini", "Sedan", "SUV", "Luxury"].map((name) => (
-              <TouchableOpacity
-                key={name}
-                style={[
-                  styles.vehicleChip,
-                  vehicleType === name && styles.activeVehicleChip,
-                ]}
-                onPress={() => setVehicleType(name)}
-              >
-                <Text
-                  style={[
-                    styles.vehicleChipText,
-                    vehicleType === name && styles.activeVehicleChipText,
-                  ]}
-                >
-                  {name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.sectionLabel}>Vehicle Number</Text>
-          <TextInput
-            placeholder="KL-XX-XX-XXXX"
-            value={vehicleNumber}
-            onChangeText={setVehicleNumber}
-            style={styles.input}
-            placeholderTextColor="#555"
-            autoCapitalize="characters"
-          />
-
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={handleBooking}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.confirmButtonText}>
-              {isScheduled ? "Schedule Ride" : "Confirm Driver"}
+            <Text style={styles.driverArrivingTitle}>Driver is on the way</Text>
+            <Text style={styles.driverArrivingSubtext}>
+              Share this code with your driver to start the ride
             </Text>
-          </TouchableOpacity>
-        </ScrollView>
+
+            {/* OTP Box */}
+            <View style={styles.dashboardOtpBox}>
+              <Text style={styles.dashboardOtpLabel}>CONFIRMATION CODE</Text>
+              <Text style={styles.dashboardOtpValue}>{bookingOtp}</Text>
+            </View>
+
+            {/* Pickup info */}
+            <View style={styles.dashboardPickupRow}>
+              <View style={styles.dashboardPickupDot} />
+              <View style={styles.dashboardPickupTextWrap}>
+                <Text style={styles.dashboardPickupLabel}>Pickup</Text>
+                <Text style={styles.dashboardPickupAddress} numberOfLines={2}>
+                  {pickup || "Selected Location"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Action buttons */}
+            <View style={styles.dashboardActionRow}>
+              <TouchableOpacity /* ... Call Button ... */ />
+              <TouchableOpacity /* ... Message Button ... */ />
+              <TouchableOpacity /* ... Share Button ... */ />
+
+              {/* --- MODIFY THIS BUTTON --- */}
+              <TouchableOpacity
+                style={styles.dashboardActionBtn}
+                activeOpacity={0.7}
+                onPress={() => {
+                  router.push({
+                    pathname: '/rideDetails',
+                    params: {
+                      pickup: pickup,
+                      vehicleType: vehicleType,
+                      // You can pass other data here if needed
+                    },
+                  });
+                }}
+              >
+                <Text style={styles.dashboardActionIcon}>🏁</Text>
+                <Text style={styles.dashboardActionLabel}>Finish</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        ) : (
+          /* ========== NORMAL BOOKING VIEW ========== */
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.panelTitle}>Book your driver</Text>
+
+            <LocationSearch
+              mapRef={mapRef}
+              inputRef={inputRef}
+              setCoords={setCoords}
+              setPickup={setPickup}
+              isSearching={isSearching}
+              setIsSearching={setIsSearching}
+              setSelectedPin={setSelectedPin}
+              setMapMode={setMapMode}
+              pickup={pickup}
+            />
+
+            {loadingAddress && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.loadingText}>
+                  Fetching location address...
+                </Text>
+              </View>
+            )}
+
+            {/* ✅ ADDED DROP LOCATION INPUT (Required for API) */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
+              <Text style={styles.sectionLabel}>Where to?</Text>
+              <TextInput
+                placeholder="Enter destination address"
+                value={destination}
+                onChangeText={setDestination}
+                style={styles.input}
+                placeholderTextColor="#555"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.scheduleRow}
+              onPress={() => setScheduleModalVisible(true)}
+            >
+              <View style={styles.scheduleIconContainer}>
+                <Text style={{ fontSize: 20 }}>🕐</Text>
+              </View>
+              <View style={styles.scheduleTextContainer}>
+                <Text style={styles.scheduleLabel}>When</Text>
+                <Text style={styles.scheduleValue}>{formatDisplayTime()}</Text>
+              </View>
+              <Text style={styles.scheduleChevron}>›</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.sectionLabel}>Choose Service</Text>
+            <View style={styles.vehicleChipsRow}>
+              {["Mini", "Sedan", "SUV", "Luxury"].map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  style={[
+                    styles.vehicleChip,
+                    vehicleType === name && styles.activeVehicleChip,
+                  ]}
+                  onPress={() => setVehicleType(name)}
+                >
+                  <Text
+                    style={[
+                      styles.vehicleChipText,
+                      vehicleType === name && styles.activeVehicleChipText,
+                    ]}
+                  >
+                    {name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.sectionLabel}>Vehicle Number</Text>
+            <TextInput
+              placeholder="KL-01-XXXX"
+              value={vehicleNumber}
+              onChangeText={setVehicleNumber}
+              style={styles.input}
+              placeholderTextColor="#555"
+              autoCapitalize="characters"
+            />
+
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleBooking}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.confirmButtonText}>
+                {isScheduled ? "Schedule Ride" : "Confirm Driver"}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
       </View>
 
       {/* ================= SCHEDULE MODAL ================= */}
@@ -723,6 +1082,12 @@ export default function UserDashboard() {
         </View>
       </Modal>
 
+      {/* ================= FETCHING DRIVER MODAL ================= */}
+      <FetchingDriverModal
+        visible={isFetchingDriver}
+        onCancel={handleCancelFetching}
+      />
+
       {/* ================= SUCCESS MODAL ================= */}
       <Modal
         animationType="fade"
@@ -754,7 +1119,7 @@ export default function UserDashboard() {
 
             <TouchableOpacity
               style={styles.successDoneBtn}
-              onPress={() => setSuccessModalVisible(false)}
+              onPress={handleDone}
             >
               <Text style={styles.successDoneBtnText}>Done</Text>
             </TouchableOpacity>
@@ -979,7 +1344,7 @@ const styles = StyleSheet.create({
   locationIcon: {
     fontSize: 22,
     color: "#000",
-  },  
+  },
 
   // Bottom Panel
   panel: {
@@ -1001,6 +1366,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderBottomWidth: 0,
     borderColor: "rgba(255,255,255,0.1)",
+  },
+  panelConfirmed: {
+    maxHeight: "75%",
   },
   panelHandle: {
     width: 40,
@@ -1111,7 +1479,7 @@ const styles = StyleSheet.create({
   },
   scheduleChevron: { fontSize: 24, color: "#444", marginLeft: 10 },
 
-  // Vehicle Type Chips — only name
+  // Vehicle Type Chips
   sectionLabel: {
     fontSize: 16,
     fontWeight: "600",
@@ -1143,7 +1511,7 @@ const styles = StyleSheet.create({
   vehicleChipText: {
     fontSize: 15,
     fontWeight: "500",
-    color: "rgba(255,255,255,0.5)",
+   color: "rgba(255,255,255,0.5)",
   },
   activeVehicleChipText: {
     fontSize: 15,
@@ -1179,7 +1547,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // Modal
+  // Schedule Modal
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -1247,7 +1615,158 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 
-  // Success Modal
+  // ================= FETCHING DRIVER MODAL =================
+  fetchOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+  },
+  fetchBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+  },
+  fetchCard: {
+    width: width * 0.88,
+    backgroundColor: "#0a0a0a",
+    borderRadius: 24,
+    padding: 30,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  fetchIconContainer: {
+    width: 120,
+    height: 120,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 25,
+    position: "relative",
+  },
+  fetchPulseRing: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  fetchRotatingArc: {
+    position: "absolute",
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: "transparent",
+    borderTopColor: "#fff",
+    borderRightColor: "rgba(255,255,255,0.3)",
+  },
+  fetchArcSegment: {
+    display: "none",
+  },
+  fetchCenterIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  fetchCarEmoji: {
+    fontSize: 28,
+  },
+  fetchTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 8,
+  },
+  fetchDotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+    height: 12,
+    gap: 6,
+  },
+  fetchDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
+  fetchSubtext: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 20,
+  },
+  fetchProgressTrack: {
+    width: "100%",
+    height: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 2,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  fetchProgressFill: {
+    width: "45%",
+    height: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 2,
+  },
+  fetchStatusRow: {
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "center",
+    gap: 12,
+    marginBottom: 24,
+  },
+  fetchStatusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  fetchStatusText: {
+    fontSize: 13,
+    color: "#888",
+    fontWeight: "500",
+  },
+  fetchStatusCount: {
+    fontSize: 15,
+    color: "#fff",
+    fontWeight: "700",
+    minWidth: 12,
+    textAlign: "center",
+  },
+  fetchCancelButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    alignItems: "center",
+  },
+  fetchCancelText: {
+    fontSize: 15,
+    color: "rgba(255, 255, 255, 0.6)",
+    fontWeight: "600",
+  },
+
+  // ================= SUCCESS MODAL =================
   successOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -1335,5 +1854,164 @@ const styles = StyleSheet.create({
     color: "#000",
     fontSize: 16,
     fontWeight: "bold",
+  },
+
+  // ================= CONFIRMED DASHBOARD (OTP ONLY) =================
+  otpPanelContent: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 40,
+    alignItems: "center",
+  },
+
+  // Green status badge
+  confirmedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.3)",
+    marginBottom: 28,
+  },
+  confirmedBadgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#22c55e",
+    marginRight: 8,
+  },
+  confirmedBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#22c55e",
+    letterSpacing: 1.5,
+  },
+
+  // Driver arriving icon area
+  driverArrivingIconContainer: {
+    width: 100,
+    height: 100,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    position: "relative",
+  },
+  driverArrivingRing: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  driverArrivingRingOuter: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  driverArrivingEmoji: {
+    fontSize: 42,
+  },
+
+  driverArrivingTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 6,
+  },
+  driverArrivingSubtext: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 30,
+    lineHeight: 20,
+  },
+
+  // Big OTP box on dashboard
+  dashboardOtpBox: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    paddingVertical: 24,
+    alignItems: "center",
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  dashboardOtpLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#555",
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+  dashboardOtpValue: {
+    fontSize: 52,
+    fontWeight: "800",
+    letterSpacing: 14,
+    color: "#fff",
+  },
+
+  // Pickup row
+  dashboardPickupRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  dashboardPickupDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#fff",
+    marginTop: 5,
+    marginRight: 14,
+  },
+  dashboardPickupTextWrap: {
+    flex: 1,
+  },
+  dashboardPickupLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#555",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  dashboardPickupAddress: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.7)",
+    lineHeight: 20,
+  },
+
+  // Action buttons row
+  dashboardActionRow: {
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "space-around",
+  },
+  dashboardActionBtn: {
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  dashboardActionIcon: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  dashboardActionLabel: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "500",
   },
 });
