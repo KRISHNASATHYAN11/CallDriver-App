@@ -12,7 +12,10 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "CallDriver needs your location to show your pickup point on the map and connect you with nearby drivers.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "CallDriver needs your location to provide real-time ride tracking and ensure pickup accuracy."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "CallDriver needs your location to provide real-time ride tracking and ensure pickup accuracy.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
@@ -40,6 +43,9 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 300,
+          "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
       ],

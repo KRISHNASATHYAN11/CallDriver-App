@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
+import * as Location from "expo-location";
 import {
   View,
   Text,
@@ -18,6 +19,10 @@ import MapView, { Marker, Region, MapPressEvent } from "react-native-maps";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
+import { bookingApi } from "@/src/api/bookingApi";
+
+// ✅ IMPORT YOUR API HERE
+ // Adjust the path as needed
 
 const { width, height } = Dimensions.get("window");
 
@@ -441,6 +446,9 @@ const FetchingDriverModal = ({
 
 export default function UserDashboard() {
   const [pickup, setPickup] = useState("");
+  // ✅ ADDED STATE FOR DROP LOCATION (Required by API)
+  const [destination, setDestination] = useState(""); 
+  
   const [vehicleType, setVehicleType] = useState("Sedan");
   const [vehicleNumber, setVehicleNumber] = useState("");
   const mapRef = useRef<MapView>(null);
@@ -532,6 +540,58 @@ export default function UserDashboard() {
     }
   };
 
+  const handleGetCurrentLocation = async () => {
+    try {
+      // Ask permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        Toast.show({
+          type: "error",
+          text1: "Permission denied",
+          text2: "Enable location access",
+        });
+        return;
+      }
+
+      // Get location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const { latitude, longitude } = location.coords;
+
+      const newRegion: Region = {
+        latitude,
+        longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+
+      // Update map + pin
+      setCoords(newRegion);
+      setSelectedPin({ latitude, longitude });
+      setMapMode("idle");
+
+      mapRef.current?.animateToRegion(newRegion, 1000);
+
+      // Get address
+      fetchAddressFromCoords(latitude, longitude);
+
+      Toast.show({
+        type: "success",
+        text1: "Location detected",
+        position: "bottom",
+      });
+    } catch (err) {
+      console.log(err);
+      Toast.show({
+        type: "error",
+        text1: "Location error",
+      });
+    }
+  };
+
   const handleMapPress = async (event: MapPressEvent) => {
     if (isSearching) {
       setIsSearching(false);
@@ -604,7 +664,9 @@ export default function UserDashboard() {
     });
   };
 
-  const handleBooking = () => {
+  // ✅ UPDATED HANDLE BOOKING WITH API INTEGRATION
+    // ✅ UPDATED HANDLE BOOKING WITH FIX
+  const handleBooking = async () => {
     if (!pickup) {
       Toast.show({
         type: "error",
@@ -614,34 +676,63 @@ export default function UserDashboard() {
       return;
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    setBookingOtp(otp);
-
-    const scheduleData = isScheduled
-      ? {
-        date: selectedDate.toLocaleDateString(),
-        time: selectedTime.toLocaleTimeString(),
-      }
-      : "Now";
-
-    const data = {
-      pickup,
-      latitude: selectedPin?.latitude || coords.latitude,
-      longitude: selectedPin?.longitude || coords.longitude,
-      schedule: scheduleData,
-      vehicleType,
-      vehicleNumber,
-      otp: otp,
-    };
-
-    console.log("BOOKING DATA:", data);
+    if (!destination) {
+      Toast.show({
+        type: "error",
+        text1: "Please enter a destination",
+        position: "bottom",
+      });
+      return;
+    }
 
     setIsFetchingDriver(true);
 
-    fetchTimerRef.current = setTimeout(() => {
+    const lat = selectedPin?.latitude || coords.latitude;
+    const lng = selectedPin?.longitude || coords.longitude;
+
+    // Mocking drop coordinates
+    const dropLat = lat + 0.01;
+    const dropLng = lng + 0.01;
+
+    // ✅ FIX: Add 'as [number, number]' to satisfy the TypeScript strict type
+    const payload = {
+      user: "69d5df200f3bb4f757c8e407", // Replace with actual user ID
+      pickupLocation: {
+        type: "Point" as const,
+        coordinates: [lng, lat] as [number, number], // <--- FIX HERE
+        address: pickup,
+      },
+      dropLocation: {
+        type: "Point" as const,
+        coordinates: [dropLng, dropLat] as [number, number], // <--- FIX HERE
+        address: destination,
+      },
+      rideType: vehicleType,
+    };
+
+    try {
+      const response = await bookingApi.createBooking(payload);
+
+      if (response.success) {
+        console.log("Booking Success:", response.data);
+        
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+        setBookingOtp(otp);
+
+        setIsFetchingDriver(false);
+        setSuccessModalVisible(true);
+      } else {
+        throw new Error("Booking failed");
+      }
+    } catch (error: any) {
+      console.error("Booking Error:", error);
       setIsFetchingDriver(false);
-      setSuccessModalVisible(true);
-    }, 3000);
+      Toast.show({
+        type: "error",
+        text1: "Booking Failed",
+        text2: error.message || "Could not connect to server",
+      });
+    }
   };
 
   // 🔥 Done button → show OTP-only dashboard
@@ -697,13 +788,20 @@ export default function UserDashboard() {
         </MapView>
       )}
 
+      <TouchableOpacity
+        style={styles.locationButton}
+        onPress={handleGetCurrentLocation}
+      >
+        <Text style={styles.locationIcon}>📍</Text>
+      </TouchableOpacity>
+
       {/* TAP INSTRUCTION */}
       {!selectedPin && !isSearching && !isBookingConfirmed && (
         <View style={styles.tapInstructionContainer} pointerEvents="none">
-          <View style={styles.tapInstructionBox}>
+          {/* <View style={styles.tapInstructionBox}>
             <Text style={styles.tapInstructionIcon}>👆</Text>
             <Text style={styles.tapInstructionText}>Tap to select pickup</Text>
-          </View>
+          </View> */}
         </View>
       )}
 
@@ -843,6 +941,18 @@ export default function UserDashboard() {
                 </Text>
               </View>
             )}
+
+            {/* ✅ ADDED DROP LOCATION INPUT (Required for API) */}
+            <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
+              <Text style={styles.sectionLabel}>Where to?</Text>
+              <TextInput
+                placeholder="Enter destination address"
+                value={destination}
+                onChangeText={setDestination}
+                style={styles.input}
+                placeholderTextColor="#555"
+              />
+            </View>
 
             <TouchableOpacity
               style={styles.scheduleRow}
@@ -1213,6 +1323,29 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
 
+  locationButton: {
+    position: "absolute",
+    bottom: "48%",
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+    zIndex: 20,
+  },
+
+  locationIcon: {
+    fontSize: 22,
+    color: "#000",
+  },
+
   // Bottom Panel
   panel: {
     position: "absolute",
@@ -1378,7 +1511,7 @@ const styles = StyleSheet.create({
   vehicleChipText: {
     fontSize: 15,
     fontWeight: "500",
-    color: "rgba(255,255,255,0.5)",
+   color: "rgba(255,255,255,0.5)",
   },
   activeVehicleChipText: {
     fontSize: 15,
