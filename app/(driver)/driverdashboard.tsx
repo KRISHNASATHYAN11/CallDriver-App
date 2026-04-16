@@ -134,7 +134,7 @@ export default function DriverDashboard() {
     return "Good Evening,";
   };
 
- 
+
   useEffect(() => {
     const loadDriverId = async () => {
       try {
@@ -142,8 +142,8 @@ export default function DriverDashboard() {
         if (stored) {
           const driver = JSON.parse(stored);
           const id = driver._id;
-          driverIdRef.current = id;  
-          setDriverId(id);           
+          driverIdRef.current = id;
+          setDriverId(id);
           console.log("✅ Loaded driverId from AsyncStorage:", id);
         } else {
           console.log("⚠️ No driver found in AsyncStorage");
@@ -157,9 +157,9 @@ export default function DriverDashboard() {
     loadDriverId();
   }, []);
 
- 
+
   useEffect(() => {
-    if (!driverId) return; 
+    if (!driverId) return;
 
     const fetchProfile = async () => {
       try {
@@ -184,9 +184,9 @@ export default function DriverDashboard() {
     fetchProfile();
   }, [driverId]);
 
- 
+
   useEffect(() => {
-    if (!driverId) return; 
+    if (!driverId) return;
 
     isMountedRef.current = true;
 
@@ -273,7 +273,7 @@ export default function DriverDashboard() {
         socketRef.current.disconnect();
       }
     };
-  }, [driverId]); 
+  }, [driverId]);
 
   // =========================================================================
   // ANIMATIONS
@@ -435,26 +435,27 @@ export default function DriverDashboard() {
         await soundObject.current.unloadAsync();
         soundObject.current = null;
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // =========================================================================
   // PROFILE PICTURE LOGIC
   // =========================================================================
   const handleAvatarPress = () => {
-    if (profileImage) {
-      Alert.alert("Profile Photo", "Choose an action", [
-        { text: "View Photo", onPress: () => setIsViewModalVisible(true) },
-        { text: "Update Photo", onPress: () => pickImage("gallery") },
-        { text: "Cancel", style: "cancel" },
-      ]);
-    } else {
-      Alert.alert("Set Profile Picture", "Choose how you want to add your photo", [
-        { text: "Take Photo", onPress: () => pickImage("camera") },
-        { text: "Choose from Gallery", onPress: () => pickImage("gallery") },
-        { text: "Cancel", style: "cancel" },
-      ]);
-    }
+    // if (profileImage) {
+    //   Alert.alert("Profile Photo", "Choose an action", [
+    //     { text: "View Photo", onPress: () => setIsViewModalVisible(true) },
+    //     { text: "Update Photo", onPress: () => pickImage("gallery") },
+    //     { text: "Cancel", style: "cancel" },
+    //   ]);
+    // } else {
+    //   Alert.alert("Set Profile Picture", "Choose how you want to add your photo", [
+    //     { text: "Take Photo", onPress: () => pickImage("camera") },
+    //     { text: "Choose from Gallery", onPress: () => pickImage("gallery") },
+    //     { text: "Cancel", style: "cancel" },
+    //   ]);
+    // }
+     router.push("/(driver)/edit-profile")
   };
 
   const pickImage = async (type: "camera" | "gallery") => {
@@ -568,7 +569,7 @@ export default function DriverDashboard() {
   };
 
   const goOffline = async () => {
-    if (!driverIdRef.current) return; 
+    if (!driverIdRef.current) return;
 
     setIsToggling(true);
     try {
@@ -591,7 +592,7 @@ export default function DriverDashboard() {
   };
 
   const acceptRide = async () => {
-    if (!driverIdRef.current) return; 
+    if (!driverIdRef.current) return;
 
     stopAlerts();
     setIsLoading(true);
@@ -699,7 +700,7 @@ export default function DriverDashboard() {
   };
 
   const handleArrived = async () => {
-    if (!driverIdRef.current) return; 
+    if (!driverIdRef.current) return;
 
     try {
       const bookingId = bookingData?.id || bookingData?._id;
@@ -724,7 +725,7 @@ export default function DriverDashboard() {
     if (newOtp.join("").length === 4) Keyboard.dismiss();
   };
 
-  
+
   const verifyOtpAndStart = async () => {
     const enteredOtp = otp.join("");
     const bookingId = bookingData?.id || bookingData?._id;
@@ -784,7 +785,7 @@ export default function DriverDashboard() {
     }
   };
 
-  
+
   if (isLoadingDriver) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -1046,10 +1047,14 @@ export default function DriverDashboard() {
                   <Ionicons name="person-add" size={24} color="#64748b" />
                 )}
               </TouchableOpacity>
-              <View style={{ flex: 1, marginLeft: 15 }}>
+
+              <TouchableOpacity
+                style={{ flex: 1, marginLeft: 15 }}
+                onPress={() => router.push("/(driver)/edit-profile")}
+              >
                 <Text style={styles.welcomeText}>{getGreeting()}</Text>
                 <Text style={styles.driverNameText}>{driverName}</Text>
-              </View>
+              </TouchableOpacity>
             </View>
             <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/(driver)/wallet")}>
               <View style={styles.earningsCard}>
