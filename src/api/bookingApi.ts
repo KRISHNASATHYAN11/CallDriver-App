@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 
-const BASE_URL = "http://192.168.1.7:3000";
+const BASE_URL = "http://192.168.1.36:3000";
 
 // ---------------------------------------------------------------------------
 // Axios instance with interceptors (Same as driver.ts)
@@ -64,7 +64,7 @@ export const bookingApi = {
       rideType: string;
     }
   ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.post(`http://192.168.1.7:3000/booking/`, payload);
+    const res = await apiClient.post(`http://192.168.1.36:3000/booking/`, payload);
     return res.data;
   },
 

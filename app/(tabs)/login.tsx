@@ -204,8 +204,11 @@ export default function LoginScreen() {
         setLoading(false);
 
         if (res.token) {
-          setUserId(res.user.id);
-          await AsyncStorage.setItem("token", res.token);
+          if (userType === "driver") {
+            await AsyncStorage.setItem("driverId", res.user.id);
+            await AsyncStorage.setItem("driver", JSON.stringify(res.user)); // optional but good
+          }
+
           api.defaults.headers.common["Authorization"] = `Bearer ${res.token}`;
           Toast.show({
             type: "success",

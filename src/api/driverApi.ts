@@ -1,36 +1,60 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
-
-const BASE_URL ="http://192.168.1.38:3000";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ---------------------------------------------------------------------------
-// Axios instance with interceptors
+// Configuration
 // ---------------------------------------------------------------------------
+
+// Update this IP to match your local backend if testing on a physical device
+const BASE_URL = "http://192.168.1.36:3000";
+
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 10000, // 10 seconds timeout
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Request interceptor — attach auth token if present
+// ---------------------------------------------------------------------------
+// Interceptors
+// ---------------------------------------------------------------------------
+
+// Request Interceptor: Automatically attach JWT token
 apiClient.interceptors.request.use(
-  (config) => {
-    // Add JWT token here if you use auth:
-    // const token = await AsyncStorage.getItem("driver_token");
-    // if (token) config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.warn("Error retrieving token from storage:", error);
+    }
     return config;
   },
-  (error) => Promise.reject(error),
+  (error) => {
+    return Promise.reject(error);
+  },
 );
 
-// Response interceptor — normalise errors
+// Response Interceptor: Handle global errors
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<any>) => {
     const message =
-      error.response?.data?.message || error.message || "Something went wrong";
-    console.log("❌ API Error:", message);
+      error.response?.data?.message ||
+      error.message ||
+      "An unexpected error occurred";
+
+    // Log detailed error for debugging
+    console.log("❌ API Error Details:", {
+      url: error.config?.url,
+      status: error.response?.status,
+      message: message,
+      data: error.response?.data,
+    });
+
     return Promise.reject({
       message,
       status: error.response?.status,
@@ -40,8 +64,12 @@ apiClient.interceptors.response.use(
 );
 
 // ---------------------------------------------------------------------------
-// Helper: convert image URI → base64 using fetch API (no extra packages)
+// Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Converts a local file URI to a Base64 string for image uploads
+ */
 export async function uriToBase64(uri: string): Promise<string> {
   try {
     const response = await fetch(uri);
@@ -57,98 +85,75 @@ export async function uriToBase64(uri: string): Promise<string> {
   }
 }
 
-// =============================================================================
+// =========================================================================
 // DRIVER API
-// =============================================================================
+// =========================================================================
+
 export const driverApi = {
-  /** Selfie verification — called before going online */
-  verifySelfie: async (
-    driverId: string,
-    selfieBase64: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.post(`/driver/${driverId}/verify-selfie`, {
-      selfie: selfieBase64,
-      verifiedAt: new Date().toISOString(),
-    });
+  /**
+   * Fetch driver profile details
+   */
+  getDriver: async (driverId: string) => {
+    const res = await apiClient.get(`/driver/${driverId}`);
     return res.data;
   },
 
-  /** Toggle driver online / offline status */
-  toggleOnlineStatus: async (
-    driverId: string,
-    isOnline: boolean,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.post(`http://192.168.1.7:3000/driver/online/${driverId}`, {
+  /**
+   * Toggle Online/Offline status
+   */
+  toggleOnlineStatus: async (driverId: string, isOnline: boolean) => {
+    const res = await apiClient.post(`/driver/online/${driverId}`, {
       isOnline,
     });
     return res.data;
   },
 
-  /** Update driver profile fields */
-  updateDriver: async (
-    driverId: string,
-    updates: Record<string, any>,
-  ): Promise<{ success: boolean; data: any }> => {
+  /**
+   * Update driver's current live location
+   */
+  updateLocation: async (driverId: string, lng: number, lat: number) => {
+    const res = await apiClient.put(`/driver/location/${driverId}`, {
+      lng,
+      lat,
+    });
+    return res.data;
+  },
+
+  /**
+   * Update driver profile (e.g., name, photo)
+   */
+  updateDriver: async (driverId: string, updates: Record<string, any>) => {
     const res = await apiClient.put(`/driver/${driverId}`, updates);
     return res.data;
   },
 
-  /** Get driver profile */
-  getDriver: async (
-    driverId: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.get(`/driver/${driverId}`);
-    return res.data;
-  },
-
-  /** Update live location — persisted to DB */
- updateLocation: async (
-  driverId: string,
-  lng: number,
-  lat: number,
-): Promise<{ success: boolean; data: any }> => {
-
-  const res = await apiClient.put(`/driver/location/${driverId}`, {
-    lng,
-    lat,
-  });
-
-  return res.data;
-},
-
-  /** Get earnings for a period */
+  /**
+   * Fetch earnings stats
+   */
   getEarnings: async (
     driverId: string,
     period: "today" | "week" | "month" = "today",
-  ): Promise<{ success: boolean; data: any }> => {
+  ) => {
     const res = await apiClient.get(
       `/driver/${driverId}/earnings?period=${period}`,
     );
     return res.data;
   },
-
-  /** Update FCM push-notification token */
-  updateFcmToken: async (
-    driverId: string,
-    fcmToken: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.patch(`/driver/${driverId}/fcm-token`, {
-      fcmToken,
-    });
-    return res.data;
-  },
 };
 
-// =============================================================================
+// =========================================================================
 // BOOKING API
-// =============================================================================
+// =========================================================================
+
 export const bookingApi = {
-  /** Accept a booking */
+  /**
+   * Accept a booking request
+   */
   acceptBooking: async (
     bookingId: string,
     driverId: string,
     driverLocation: { lat: number; lng: number },
-  ): Promise<{ success: boolean; data: any }> => {
+  ) => {
     const res = await apiClient.post(`/booking/${bookingId}/accept`, {
       driverId,
       driverLocation,
@@ -156,85 +161,52 @@ export const bookingApi = {
     return res.data;
   },
 
-  /** Reject / decline a booking */
-  rejectBooking: async (
-    bookingId: string,
-    driverId: string,
-  ): Promise<{ success: boolean; data: any }> => {
+  /**
+   * Reject a booking request
+   */
+  rejectBooking: async (bookingId: string, driverId: string) => {
     const res = await apiClient.post(`/booking/${bookingId}/reject`, {
       driverId,
     });
     return res.data;
   },
 
-  /** Start trip — server verifies OTP */
-  startTrip: async (
-    bookingId: string,
-    otp: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.post(`/booking/${bookingId}/start`, {
-      otp,
-    });
-    return res.data;
-  },
-
-  /** End / complete trip */
-  endTrip: async (
-    bookingId: string,
-    driverId: string,
-    endTime: number,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.post(`/booking/${bookingId}/end`, {
-      driverId,
-      endTime: new Date(endTime).toISOString(),
-    });
-    return res.data;
-  },
-
-  /** Mark driver as arrived at pickup */
-  markArrived: async (
-    bookingId: string,
-    driverId: string,
-  ): Promise<{ success: boolean; data: any }> => {
+  /**
+   * Mark driver as arrived at pickup location
+   */
+  markArrived: async (bookingId: string, driverId: string) => {
     const res = await apiClient.post(`/booking/${bookingId}/arrive`, {
       driverId,
     });
     return res.data;
   },
 
-  /** Get single booking details */
-  getBooking: async (
+  /**
+   * Start the trip after verifying OTP
+   */
+  startTrip: async (bookingId: string, otp: string) => {
+    const res = await apiClient.post(`/booking/${bookingId}/start`, { otp });
+    return res.data;
+  },
+
+  /**
+   * End the trip and calculate final fare
+   */
+  endTrip: async (
     bookingId: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.get(`/booking/${bookingId}`);
-    return res.data;
-  },
-
-  /** Get driver's currently active booking */
-  getActiveBooking: async (
     driverId: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.get(`/booking/driver/${driverId}/active`);
+    endTime: string | number,
+  ) => {
+    const res = await apiClient.post(`/booking/${bookingId}/end`, {
+      driverId,
+      endTime, // Passing timestamp or ISO string
+    });
     return res.data;
   },
 };
 
-// =============================================================================
-// NOTIFICATION API
-// =============================================================================
-export const notificationApi = {
-  getNotifications: async (
-    driverId: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.get(`/notifications/${driverId}`);
-    return res.data;
-  },
-  markRead: async (
-    notificationId: string,
-  ): Promise<{ success: boolean; data: any }> => {
-    const res = await apiClient.patch(`/notifications/${notificationId}/read`);
-    return res.data;
-  },
-};
+// ---------------------------------------------------------------------------
+// Default Export
+// ---------------------------------------------------------------------------
 
 export default apiClient;
